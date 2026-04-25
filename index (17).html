@@ -1,0 +1,2404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f2027">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Coletor · Almoxarifado</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f2027;--bg2:#162530;--bg3:#1d3040;
+  --accent:#00d4aa;--warn:#f5a623;--danger:#e05252;--info:#4a9eff;
+  --text:#e8f4f0;--text2:#8ab8ae;--text3:#4a7a70;
+  --border:rgba(0,212,170,0.15);--border2:rgba(0,212,170,0.30);
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+  --radius:12px;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.5;overscroll-behavior:none}
+.screen{display:none;flex-direction:column;min-height:100vh;min-height:100dvh;padding-top:var(--safe-top);padding-bottom:var(--safe-bot);animation:fadeIn .2s ease}
+.screen.active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* TOPBAR */
+.topbar{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+.topbar-back{width:36px;height:36px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--accent);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.topbar-title{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.04em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar-sub{font-size:11px;color:var(--text2)}
+.topbar-logout{width:36px;height:36px;border-radius:8px;background:var(--bg3);border:1px solid var(--border);color:var(--text2);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+/* SCROLL CONTENT */
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+.card-title{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 16px;border-radius:var(--radius);font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.04em;cursor:pointer;border:none;transition:all .15s ease;-webkit-user-select:none;user-select:none}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#0f2027}
+.btn-primary:hover{background:#00f0c0}
+.btn-secondary{background:var(--bg3);color:var(--accent);border:1px solid var(--border2)}
+.btn-secondary:hover{border-color:var(--accent)}
+.btn-danger{background:rgba(224,82,82,.12);color:var(--danger);border:1px solid rgba(224,82,82,.25)}
+.btn-warn{background:rgba(245,166,35,.12);color:var(--warn);border:1px solid rgba(245,166,35,.25)}
+.btn-info{background:rgba(74,158,255,.12);color:var(--info);border:1px solid rgba(74,158,255,.25)}
+.btn-sm{padding:8px 14px;font-size:12px}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
+/* INPUTS */
+.inp{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;transition:border-color .15s}
+.inp:focus{border-color:var(--accent)}
+.inp::placeholder{color:var(--text3)}
+.inp-label{font-size:12px;color:var(--text2);margin-bottom:6px;font-family:var(--mono)}
+.inp-group{margin-bottom:14px}
+select.inp{cursor:pointer}
+/* BADGE / STATUS */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.badge-green{background:rgba(0,212,170,.15);color:var(--accent)}
+.badge-warn{background:rgba(245,166,35,.15);color:var(--warn)}
+.badge-danger{background:rgba(224,82,82,.15);color:var(--danger)}
+.badge-info{background:rgba(74,158,255,.15);color:var(--info)}
+.badge-gray{background:rgba(138,184,174,.1);color:var(--text2)}
+/* LIST ITEMS */
+.list-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s}
+.list-item:hover{border-color:var(--border2)}
+.list-item-icon{width:38px;height:38px;border-radius:8px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.list-item-body{flex:1;min-width:0}
+.list-item-title{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list-item-sub{font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:2px}
+.list-item-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:10px;margin-bottom:16px}
+.stat-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center}
+.stat-val{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--accent)}
+.stat-lbl{font-size:10px;color:var(--text2);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+/* TABS */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:12px 14px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--text3);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .15s;flex-shrink:0}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+.tab-content.active{display:block}
+/* EMPTY STATE */
+.empty{text-align:center;padding:48px 24px;color:var(--text3)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.5}
+.empty p{font-size:14px}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:flex-end;justify-content:center;padding-bottom:var(--safe-bot)}
+.modal-overlay.active{display:flex;animation:fadeIn .2s ease}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:20px 20px calc(20px + var(--safe-bot));max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.modal-title{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+/* LOADING */
+#loading-screen{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.logo-mark{font-size:48px}
+.logo-text{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent);letter-spacing:.1em}
+.logo-sub{font-size:13px;color:var(--text3)}
+.spinner{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin-top:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* PROGRESS BAR */
+.progress-bar{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin:8px 0}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s ease}
+/* COUNTER */
+.counter-wrap{display:flex;align-items:center;gap:12px;justify-content:center;margin:12px 0}
+.counter-btn{width:44px;height:44px;border-radius:10px;background:var(--bg3);border:1px solid var(--border2);color:var(--accent);font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.counter-btn:active{transform:scale(.9);background:var(--accent);color:#0f2027}
+.counter-val{font-family:var(--mono);font-size:32px;font-weight:600;color:var(--text);min-width:80px;text-align:center;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:8px}
+/* LISTA PENDENTES */
+.pendentes-wrap{margin-bottom:16px}
+.pendentes-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:pointer;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px}
+.pendentes-header-left{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
+.pendentes-header-arrow{font-size:12px;color:var(--text3);transition:transform .2s}
+.pendentes-header-arrow.open{transform:rotate(180deg)}
+.pendentes-list{display:none;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px}
+.pendentes-list.show{display:block}
+.pendente-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.pendente-item:last-child{border-bottom:none}
+.pendente-item:hover{background:rgba(0,212,170,.06)}
+.pendente-item:active{background:rgba(0,212,170,.12)}
+.pendente-cod{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent)}
+.pendente-desc{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.pendente-arrow{color:var(--text3);font-size:14px;flex-shrink:0}
+.pendente-item.contado{opacity:.4;cursor:default}
+.pendente-item.contado .pendente-cod{color:var(--text3)}
+.pendentes-empty{padding:20px;text-align:center;font-size:13px;color:var(--text3)}
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:32px 16px;text-align:center;cursor:pointer;transition:all .2s;color:var(--text2)}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(0,212,170,.05);color:var(--accent)}
+.drop-zone-icon{font-size:32px;margin-bottom:8px}
+.drop-zone p{font-size:13px}
+/* SALDO MODULE SPECIFIC */
+.saldo-search-wrap{position:relative;margin-bottom:16px}
+.saldo-search-wrap .inp{padding-right:50px;font-size:15px}
+.saldo-search-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--accent);color:#0f2027;border:none;border-radius:6px;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.saldo-result-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;animation:fadeIn .2s ease}
+.saldo-result-header{padding:14px 16px;border-bottom:1px solid var(--border)}
+.saldo-cod{font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:2px}
+.saldo-desc{font-size:15px;font-weight:600;color:var(--text)}
+.saldo-meta{display:flex;gap:12px;margin-top:6px;flex-wrap:wrap}
+.saldo-meta span{font-family:var(--mono);font-size:11px;color:var(--text2)}
+.saldo-total-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:rgba(0,212,170,.06)}
+.saldo-total-label{font-family:var(--mono);font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em}
+.saldo-total-val{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--accent)}
+.saldo-total-unit{font-size:12px;color:var(--text3);margin-left:4px}
+.saldo-locs-title{padding:10px 16px 6px;font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+.saldo-loc-row{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border)}
+.saldo-loc-name{font-family:var(--mono);font-size:13px;color:var(--text)}
+.saldo-loc-qty{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--warn)}
+.saldo-loc-source{font-size:10px;color:var(--text3);margin-top:2px}
+.saldo-hist-row{display:flex;align-items:flex-start;padding:10px 16px;border-top:1px solid var(--border);gap:10px}
+.saldo-hist-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:2px}
+.saldo-hist-body{flex:1;min-width:0}
+.saldo-hist-desc{font-size:13px;color:var(--text)}
+.saldo-hist-meta{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:2px}
+.saldo-hist-qty{font-family:var(--mono);font-size:14px;font-weight:600;flex-shrink:0}
+.saldo-suggestion{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s}
+.saldo-suggestion:hover{border-color:var(--accent)}
+.saldo-suggestion-cod{font-family:var(--mono);font-size:10px;color:var(--text3)}
+.saldo-suggestion-desc{font-size:13px;color:var(--text)}
+.saldo-empty{text-align:center;padding:40px 24px;color:var(--text3)}
+.saldo-spinner{display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--text2);font-size:13px}
+/* LIVE BADGE */
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;animation:pulse 1.5s infinite;margin-right:4px}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+/* IMPORT PROGRESS */
+.import-bar-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-top:12px}
+.import-bar-label{font-size:12px;color:var(--text2);margin-bottom:8px;font-family:var(--mono)}
+/* CHIP FILTER */
+.chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{padding:6px 12px;border-radius:20px;font-family:var(--mono);font-size:11px;cursor:pointer;border:1px solid var(--border);color:var(--text2);background:var(--bg3);transition:all .15s;white-space:nowrap}
+.chip.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,.1)}
+/* NOTIFICAÇÃO BADGE */
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;background:var(--danger);color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;border-radius:10px;min-width:18px;height:18px;padding:0 5px;margin-left:5px;animation:badgePop .3s ease}
+@keyframes badgePop{from{transform:scale(0)}to{transform:scale(1)}}
+/* BANNER NOTIFICAÇÃO */
+.notif-banner{display:none;align-items:flex-start;gap:12px;background:rgba(245,166,35,.10);border:1px solid rgba(245,166,35,.35);border-radius:var(--radius);padding:12px 14px;margin:0 0 14px;animation:fadeIn .25s ease;cursor:pointer}
+.notif-banner.show{display:flex}
+.notif-banner-icon{font-size:22px;flex-shrink:0;margin-top:1px}
+.notif-banner-body{flex:1;min-width:0}
+.notif-banner-title{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--warn);margin-bottom:2px}
+.notif-banner-msg{font-size:12px;color:var(--text2);line-height:1.4}
+.notif-banner-close{color:var(--text3);font-size:18px;cursor:pointer;padding:0 2px;flex-shrink:0}
+.notif-banner.completo{background:rgba(0,212,170,.10);border-color:rgba(0,212,170,.35)}
+.notif-banner.completo .notif-banner-title{color:var(--accent)}
+/* SESSAO CARD COM ALERTA */
+.sessao-alert-row{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;background:rgba(245,166,35,.08);border-radius:6px;border:1px solid rgba(245,166,35,.2)}
+.sessao-alert-row.ok{background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.2)}
+.sessao-alert-dot{width:7px;height:7px;border-radius:50%;background:var(--warn);animation:pulse 1.5s infinite;flex-shrink:0}
+.sessao-alert-row.ok .sessao-alert-dot{background:var(--accent)}
+.sessao-alert-txt{font-family:var(--mono);font-size:10px;color:var(--warn)}
+.sessao-alert-row.ok .sessao-alert-txt{color:var(--accent)}
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:16px 0}
+/* TOAST */
+#toast{position:fixed;bottom:calc(24px + var(--safe-bot));left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:10px 18px;font-family:var(--mono);font-size:13px;color:var(--text);z-index:300;opacity:0;transition:all .25s ease;pointer-events:none;white-space:nowrap;max-width:90vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:var(--accent);color:var(--accent)}
+#toast.err{border-color:var(--danger);color:var(--danger)}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)}
+.tbl th{padding:8px 10px;text-align:left;color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border)}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text2)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+/* PREVIEW TABLE */
+.preview-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="logo-mark">📦</div>
+  <div class="logo-text">COLETOR</div>
+  <div class="logo-sub">Sistema de Inventário · Almoxarifado</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- =================== LOGIN =================== -->
+<div class="screen" id="screen-login">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px">
+    <div style="font-size:56px;margin-bottom:8px">📦</div>
+    <div style="font-family:var(--mono);font-size:22px;font-weight:600;color:var(--accent);letter-spacing:.1em;margin-bottom:4px">COLETOR</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:40px">Sistema de Inventário · Almoxarifado</div>
+    <div style="width:100%;max-width:360px">
+      <div class="inp-group">
+        <div class="inp-label">Login</div>
+        <input class="inp" id="login-user" type="text" placeholder="seu.login" autocomplete="username" autocapitalize="none">
+      </div>
+      <div class="inp-group">
+        <div class="inp-label">Senha</div>
+        <input class="inp" id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="doLogin()" style="margin-top:8px">ENTRAR</button>
+    </div>
+    <div style="margin-top:40px;font-family:var(--mono);font-size:11px;color:var(--text3)">v4.0 · Almoxarifado</div>
+  </div>
+</div>
+
+<!-- =================== ALMOXARIFE HOME =================== -->
+<div class="screen" id="screen-home">
+  <div class="topbar">
+    <div class="topbar-title">COLETOR<span class="topbar-sub"> · <span id="home-fazenda-nome"></span></span></div>
+    <div style="font-size:13px;color:var(--text2);flex:1;text-align:right;padding-right:8px">Olá, <span id="home-user-nome" style="color:var(--accent)"></span></div>
+    <div class="topbar-logout" onclick="doLogout()" title="Sair">⏻</div>
+  </div>
+  <div class="scroll">
+    <div class="card" style="border-color:var(--border2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="card-title">Sessão ativa</div>
+        <div id="home-sessao-badge"></div>
+      </div>
+      <div id="home-sessao-desc" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px">Nenhuma sessão aberta</div>
+      <div id="home-sessao-info" style="font-size:12px;color:var(--text2);font-family:var(--mono)"></div>
+      <div class="progress-bar" id="home-progress-bar" style="display:none">
+        <div class="progress-fill" id="home-progress-fill"></div>
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-val" id="home-stat-rodada">1</div><div class="stat-lbl">Rodada</div></div>
+      <div class="stat-box"><div class="stat-val" id="home-stat-contados">0</div><div class="stat-lbl">Contados</div></div>
+      <div class="stat-box"><div class="stat-val" id="home-stat-total">0</div><div class="stat-lbl">Na lista</div></div>
+    </div>
+    <button class="btn btn-primary" onclick="iniciarContagem()" id="btn-iniciar-contagem">📋 INICIAR CONTAGEM</button>
+    <div style="height:12px"></div>
+    <!-- CONSULTA SALDO: visível para TODOS os usuários logados -->
+    <button class="btn btn-info" onclick="showSaldoConsulta('almoxarife')">🔍 CONSULTAR SALDO</button>
+    <div style="height:20px"></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Histórico desta sessão</div>
+    <div id="home-history"></div>
+  </div>
+</div>
+
+<!-- =================== CONTAGEM =================== -->
+<div class="screen" id="screen-count">
+  <div class="topbar">
+    <div class="topbar-back" onclick="showScreen('screen-home')">←</div>
+    <div>
+      <div class="topbar-title">CONTAGEM · <span id="count-rodada-label">1ª Rodada</span></div>
+      <div class="topbar-sub"><span id="count-progress-text">0/0</span></div>
+    </div>
+  </div>
+  <div class="scroll">
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Progresso · <span id="count-prog-num">0 de 0</span> itens</div>
+      <div class="progress-bar"><div class="progress-fill" id="count-prog-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- LISTA DE ITENS PENDENTES -->
+    <div class="pendentes-wrap" id="pendentes-wrap">
+      <div class="pendentes-header" onclick="togglePendentes()">
+        <div class="pendentes-header-left">
+          <span>📋</span>
+          <span>ITENS PENDENTES — <span id="pendentes-count-label">0</span></span>
+        </div>
+        <span class="pendentes-header-arrow open" id="pendentes-arrow">▼</span>
+      </div>
+      <div class="pendentes-list show" id="pendentes-list">
+        <div class="pendentes-empty">Carregando lista...</div>
+      </div>
+    </div>
+
+    <div class="inp-group">
+      <div class="inp-label">Código SAP do Produto</div>
+      <div style="display:flex;gap:8px">
+        <input class="inp" id="count-cod" type="text" placeholder="Ex: MUC00001" autocapitalize="characters" style="flex:1">
+        <button class="btn btn-secondary" style="width:auto;padding:12px 16px" onclick="buscarProdutoContagem()">🔍 BUSCAR</button>
+      </div>
+    </div>
+    <div id="count-produto-info" style="display:none">
+      <div class="card" style="margin-bottom:12px">
+        <div id="count-prod-cod" style="font-family:var(--mono);font-size:11px;color:var(--text3)"></div>
+        <div id="count-prod-desc" style="font-size:15px;font-weight:600;color:var(--text);margin:4px 0"></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text2)">Grupo: <span id="count-prod-grupo" style="color:var(--text)"></span></span>
+          <span style="font-size:12px;color:var(--text2)">Un: <span id="count-prod-un" style="color:var(--accent);font-family:var(--mono);font-weight:600"></span></span>
+        </div>
+      </div>
+      <div class="inp-group">
+        <div class="inp-label">Selecione o endereço</div>
+        <select class="inp" id="count-endereco"></select>
+      </div>
+      <div id="novo-endereco-wrap" style="margin-bottom:14px;display:none">
+        <input class="inp" id="count-novo-end" type="text" placeholder="Ex: A-02-05" style="margin-bottom:8px">
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" onclick="cancelarNovoEndereco()">✕ Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="confirmarNovoEndereco()">✓ Adicionar</button>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="mostrarNovoEndereco()" id="btn-add-end" style="margin-bottom:14px">+ Outro endereço</button>
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px">📍 <span id="count-end-selecionado" style="color:var(--text);font-family:var(--mono);font-weight:600">ENDEREÇO</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <span style="font-size:12px;color:var(--text2)">Grupo: <span id="count-end-grupo">—</span></span>
+          <span style="font-size:12px;color:var(--text2)">Un: <span id="count-end-un">—</span></span>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">Quantidade neste endereço</div>
+        <div class="counter-wrap">
+          <div class="counter-btn" onclick="changeQty(-1)">−</div>
+          <input class="counter-val inp" id="count-qty" type="number" min="0" value="0" style="text-align:center;font-size:28px;font-family:var(--mono)">
+          <div class="counter-btn" onclick="changeQty(1)">+</div>
+        </div>
+        <div class="inp-group">
+          <div class="inp-label">Observação (opcional)</div>
+          <input class="inp" id="count-obs" type="text" placeholder="Ex: caixa aberta, lote vencido...">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="confirmarContagem()">← ✓ CONFIRMAR</button>
+    </div>
+    <!-- BOTÃO FINALIZAR CONTAGEM -->
+    <div id="finalizar-wrap" style="display:none;margin:16px 0">
+      <div style="background:rgba(0,212,170,.07);border:1px solid rgba(0,212,170,.25);border-radius:var(--radius);padding:14px;margin-bottom:12px">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:4px">✅ TODOS OS ITENS CONTADOS</div>
+        <div style="font-size:12px;color:var(--text2)">Clique abaixo para finalizar sua contagem desta rodada e liberar para a próxima etapa.</div>
+      </div>
+      <button class="btn btn-primary" onclick="finalizarContagem()" id="btn-finalizar">✔ FINALIZAR MINHA CONTAGEM</button>
+    </div>
+    <div style="height:20px"></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Já contados nesta sessão</div>
+    <div id="count-history"></div>
+  </div>
+</div>
+
+<!-- =================== CONSULTA SALDO (tela dedicada) =================== -->
+<div class="screen" id="screen-saldo">
+  <div class="topbar">
+    <div class="topbar-back" id="saldo-back-btn">←</div>
+    <div>
+      <div class="topbar-title"><span class="live-dot"></span>SALDO EM TEMPO REAL</div>
+      <div class="topbar-sub" id="saldo-fazenda-label"></div>
+    </div>
+  </div>
+  <div style="padding:14px 16px 0;border-bottom:1px solid var(--border)">
+    <!-- FILTRO POR FAZENDA (só supervisor vê) -->
+    <div id="saldo-fazenda-filter-wrap" style="display:none;margin-bottom:10px">
+      <select class="inp" id="saldo-fazenda-filter" onchange="saldoChangeFazenda()">
+        <option value="">Selecione a fazenda...</option>
+      </select>
+    </div>
+    <!-- BUSCA -->
+    <div class="saldo-search-wrap">
+      <input class="inp" id="saldo-search-inp" type="text" placeholder="Código SAP ou descrição do produto..." autocapitalize="none" oninput="saldoOnInput()" onkeydown="if(event.key==='Enter')saldoBuscar()">
+      <button class="saldo-search-btn" onclick="saldoBuscar()">🔍</button>
+    </div>
+    <!-- CHIPS GRUPO -->
+    <div id="saldo-chips-wrap" style="display:none">
+      <div class="chip-row" id="saldo-chips"></div>
+    </div>
+    <!-- SUGESTÕES -->
+    <div id="saldo-suggestions" style="margin-bottom:10px"></div>
+  </div>
+  <div class="scroll" id="saldo-results-scroll" style="padding-top:12px">
+    <div class="saldo-empty" id="saldo-empty-state">
+      <div style="font-size:36px;margin-bottom:10px">🔍</div>
+      <div style="font-size:14px;color:var(--text2);margin-bottom:4px">Consulte o saldo de qualquer produto</div>
+      <div style="font-size:12px;color:var(--text3)">Digite o código SAP ou parte da descrição</div>
+    </div>
+    <div id="saldo-loading" style="display:none" class="saldo-spinner">
+      <div class="spinner"></div> Buscando...
+    </div>
+    <div id="saldo-results"></div>
+  </div>
+</div>
+
+<!-- =================== SUPERVISOR =================== -->
+<div class="screen" id="screen-supervisor">
+  <div class="topbar">
+    <div class="topbar-title">SUPERVISOR · <span id="sup-fazenda-nome" style="color:var(--text2)">—</span></div>
+    <div class="topbar-logout" onclick="doLogout()" title="Sair">⏻</div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="supTab('sessoes')">SESSÕES <span id="tab-badge-sessoes"></span></div>
+    <div class="tab" onclick="supTab('fazendas')">FAZENDAS</div>
+    <div class="tab" onclick="supTab('produtos')">PRODUTOS</div>
+    <div class="tab" onclick="supTab('usuarios')">USUÁRIOS</div>
+    <div class="tab" onclick="supTab('saldo')">SALDO</div>
+    <div class="tab" onclick="supTab('resumo')">RESUMO</div>
+    <div class="tab" onclick="supTab('diverg')">DIVERG.</div>
+  </div>
+
+  <!-- ABA SESSÕES -->
+  <div class="tab-content active" id="tab-sessoes">
+    <!-- BANNER DE NOTIFICAÇÃO (visível só quando há alertas) -->
+    <div id="notif-banner" class="notif-banner" onclick="fecharBanner()">
+      <div class="notif-banner-icon" id="notif-banner-icon">🔔</div>
+      <div class="notif-banner-body">
+        <div class="notif-banner-title" id="notif-banner-title">ATENÇÃO</div>
+        <div class="notif-banner-msg" id="notif-banner-msg"></div>
+      </div>
+      <div class="notif-banner-close" onclick="event.stopPropagation();fecharBanner()">✕</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal('modal-nova-sessao')" style="margin-bottom:16px">+ NOVA SESSÃO DE INVENTÁRIO</button>
+    <div id="list-sessoes"><div class="empty"><div class="empty-icon">🗂️</div><p>Nenhuma sessão</p></div></div>
+  </div>
+
+  <!-- ABA FAZENDAS -->
+  <div class="tab-content" id="tab-fazendas">
+    <button class="btn btn-secondary" onclick="openModal('modal-nova-fazenda')" style="margin-bottom:16px">+ NOVA FAZENDA</button>
+    <div id="list-fazendas"><div class="empty"><div class="empty-icon">🌿</div><p>Nenhuma fazenda cadastrada</p></div></div>
+  </div>
+
+  <!-- ABA PRODUTOS -->
+  <div class="tab-content" id="tab-produtos">
+    <div class="inp-group">
+      <div class="inp-label">Fazenda dos produtos</div>
+      <select class="inp" id="prod-fazenda-sel" onchange="loadProdutos()">
+        <option value="">Selecione a fazenda...</option>
+      </select>
+    </div>
+    <div class="btn-row" style="margin-bottom:12px">
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-produtos-file').click()">📥 Importar Produtos</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-enderecos-file').click()">📍 Importar Endereços</button>
+    </div>
+    <input type="file" id="imp-produtos-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport(this,'produtos')">
+    <input type="file" id="imp-enderecos-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport(this,'enderecos')">
+    <div id="import-preview-wrap" style="display:none">
+      <div id="import-preview-title" class="card-title" style="margin-bottom:8px"></div>
+      <div class="preview-wrap" id="import-preview-table"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" onclick="cancelImport()">✕ CANCELAR</button>
+        <button class="btn btn-primary btn-sm" id="btn-confirmar-import" onclick="confirmarImport()">✓ IMPORTAR</button>
+      </div>
+      <div id="import-progress-wrap" style="display:none" class="import-bar-wrap">
+        <div class="import-bar-label" id="import-bar-label">Importando...</div>
+        <div class="progress-bar"><div class="progress-fill" id="import-bar-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--text2)">Produtos: <span id="prod-count" style="color:var(--accent);font-family:var(--mono)">0</span></div>
+    </div>
+    <div id="list-produtos"><div class="empty"><div class="empty-icon">📦</div><p>Selecione uma fazenda</p></div></div>
+  </div>
+
+  <!-- ABA USUÁRIOS -->
+  <div class="tab-content" id="tab-usuarios">
+    <button class="btn btn-secondary" onclick="openModal('modal-novo-usuario')" style="margin-bottom:16px">+ NOVO USUÁRIO</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--text2)">Usuários: <span id="usr-count" style="color:var(--accent);font-family:var(--mono)">0</span></div>
+    </div>
+    <div id="list-usuarios"><div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário</p></div></div>
+  </div>
+
+  <!-- ABA SALDO (supervisor) -->
+  <div class="tab-content" id="tab-saldo">
+    <div style="margin-bottom:14px">
+      <div class="inp-label">Fazenda</div>
+      <select class="inp" id="sup-saldo-fazenda-sel" onchange="supSaldoChangeFazenda()">
+        <option value="">Selecione a fazenda...</option>
+      </select>
+    </div>
+    <!-- AÇÕES -->
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-info btn-sm" onclick="showSaldoConsulta('supervisor')">↗ TELA CHEIA</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-saldo-file').click()">📥 IMPORTAR SALDO SAP</button>
+    </div>
+    <input type="file" id="imp-saldo-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImportSaldo(this)">
+    <!-- PREVIEW IMPORTAÇÃO SALDO -->
+    <div id="saldo-import-preview-wrap" style="display:none">
+      <div class="card-title" style="margin-bottom:8px" id="saldo-import-preview-title"></div>
+      <div class="preview-wrap" id="saldo-import-preview-table"></div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-family:var(--mono)">
+        Colunas necessárias: <strong style="color:var(--accent)">codigo_sap</strong>, <strong style="color:var(--accent)">localizacao</strong>, <strong style="color:var(--accent)">quantidade</strong>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" onclick="cancelImportSaldo()">✕ CANCELAR</button>
+        <button class="btn btn-primary btn-sm" id="btn-confirmar-saldo" onclick="confirmarImportSaldo()">✓ IMPORTAR SALDO</button>
+      </div>
+      <div id="saldo-import-progress-wrap" style="display:none" class="import-bar-wrap">
+        <div class="import-bar-label" id="saldo-import-bar-label">Importando...</div>
+        <div class="progress-bar"><div class="progress-fill" id="saldo-import-bar-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+    <!-- BUSCA INLINE NO PAINEL -->
+    <div class="saldo-search-wrap" style="margin-bottom:8px">
+      <input class="inp" id="sup-saldo-inp" type="text" placeholder="Código SAP ou descrição..." autocapitalize="none" oninput="supSaldoOnInput()" onkeydown="if(event.key==='Enter')supSaldoBuscar()">
+      <button class="saldo-search-btn" onclick="supSaldoBuscar()">🔍</button>
+    </div>
+    <div id="sup-saldo-suggestions" style="margin-bottom:8px"></div>
+    <div id="sup-saldo-loading" style="display:none" class="saldo-spinner"><div class="spinner"></div> Buscando...</div>
+    <div id="sup-saldo-results"></div>
+    <div id="sup-saldo-empty" class="saldo-empty">
+      <div style="font-size:32px;margin-bottom:8px">📊</div>
+      <div style="font-size:13px;color:var(--text2)">Selecione a fazenda e busque um produto</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Saldo vem das contagens ou da importação do SAP</div>
+    </div>
+  </div>
+
+  <!-- ABA RESUMO -->
+  <div class="tab-content" id="tab-resumo">
+    <div class="inp-group">
+      <div class="inp-label">Sessão</div>
+      <select class="inp" id="resumo-sessao-sel" onchange="loadResumo()">
+        <option value="">Selecione uma sessão...</option>
+      </select>
+    </div>
+    <div class="stats-row" id="resumo-stats" style="display:none">
+      <div class="stat-box"><div class="stat-val" id="res-end">0</div><div class="stat-lbl">Endereços</div></div>
+      <div class="stat-box"><div class="stat-val" id="res-cont">0</div><div class="stat-lbl">Contados</div></div>
+      <div class="stat-box"><div class="stat-val text-ok" id="res-ok" style="color:var(--accent)">0</div><div class="stat-lbl">OK</div></div>
+      <div class="stat-box"><div class="stat-val" id="res-div" style="color:var(--danger)">0</div><div class="stat-lbl">Divergentes</div></div>
+    </div>
+    <button class="btn btn-secondary btn-sm" id="btn-export-resumo" onclick="exportResumoCSV()" style="display:none;margin-bottom:12px">⬇ EXPORTAR RESUMO COMPLETO</button>
+    <div id="resumo-body"><div class="empty"><div class="empty-icon">📊</div><p>Selecione uma sessão nas SESSÕES e volte aqui</p></div></div>
+  </div>
+
+  <!-- ABA DIVERGÊNCIAS -->
+  <div class="tab-content" id="tab-diverg">
+    <div class="inp-group">
+      <div class="inp-label">Sessão</div>
+      <select class="inp" id="diverg-sessao-sel" onchange="loadDiverg()">
+        <option value="">Selecione uma sessão...</option>
+      </select>
+    </div>
+    <div id="diverg-body"><div class="empty"><div class="empty-icon">✅</div><p>Nenhuma divergência</p></div></div>
+    <button class="btn btn-secondary btn-sm" id="btn-export-div" onclick="exportDivergCSV()" style="display:none;margin-top:12px">⬇ EXPORTAR CSV PARA SAP</button>
+  </div>
+</div>
+
+<!-- =================== MODAIS =================== -->
+
+<!-- Modal Nova Fazenda -->
+<div class="modal-overlay" id="modal-nova-fazenda">
+  <div class="modal">
+    <div class="modal-title">🌿 FAZENDA</div>
+    <input type="hidden" id="faz-edit-id">
+    <div class="inp-group"><div class="inp-label">Nome da fazenda</div><input class="inp" id="faz-nome" type="text" placeholder="Ex: Fazenda Bonita"></div>
+    <div class="inp-group"><div class="inp-label">Código (abreviação)</div><input class="inp" id="faz-cod" type="text" placeholder="Ex: FB"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nova-fazenda')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="salvarFazenda()">SALVAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nova Sessão -->
+<div class="modal-overlay" id="modal-nova-sessao">
+  <div class="modal">
+    <div class="modal-title">📋 NOVA SESSÃO DE INVENTÁRIO</div>
+    <div class="inp-group">
+      <div class="inp-label">Fazenda</div>
+      <select class="inp" id="sess-fazenda" onchange="loadEquipeOptions()"><option value="">Selecione a fazenda...</option></select>
+    </div>
+    <div class="inp-group"><div class="inp-label">Descrição da sessão</div><input class="inp" id="sess-desc" type="text" placeholder="Ex: Inventário Maio 2025 — Geral"></div>
+    <div class="inp-group">
+      <div class="inp-label">Número de contagens</div>
+      <select class="inp" id="sess-rodadas">
+        <option value="1">1 contagem (simples)</option>
+        <option value="2" selected>2 contagens (dupla — recomendado)</option>
+        <option value="3">3 contagens (tripla)</option>
+      </select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Lista de itens (importar planilha)</div>
+      <div class="drop-zone" id="drop-lista" onclick="document.getElementById('lista-file').click()">
+        <div class="drop-zone-icon">📋</div>
+        <p id="drop-lista-txt">Planilha com códigos SAP dos itens a contar</p>
+      </div>
+      <input type="file" id="lista-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onListaFile(this)">
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Equipe de contagem</div>
+      <div id="equipe-options" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal('modal-nova-sessao')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="criarSessao()">CRIAR SESSÃO</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Novo Usuário -->
+<div class="modal-overlay" id="modal-novo-usuario">
+  <div class="modal">
+    <div class="modal-title">👤 USUÁRIO</div>
+    <input type="hidden" id="usr-edit-id">
+    <div class="inp-group"><div class="inp-label">Nome completo</div><input class="inp" id="usr-nome" type="text"></div>
+    <div class="inp-group"><div class="inp-label">Login</div><input class="inp" id="usr-login" type="text" autocapitalize="none"></div>
+    <div class="inp-group"><div class="inp-label">Senha</div><input class="inp" id="usr-senha" type="password"></div>
+    <div class="inp-group">
+      <div class="inp-label">Fazenda</div>
+      <select class="inp" id="usr-fazenda"><option value="">Sem fazenda (supervisor)</option></select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Perfil</div>
+      <select class="inp" id="usr-perfil"><option value="almoxarife">Almoxarife</option><option value="supervisor">Supervisor</option></select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Status</div>
+      <select class="inp" id="usr-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal('modal-novo-usuario')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="salvarUsuario()">SALVAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Editar Sessão -->
+<div class="modal-overlay" id="modal-editar-sessao">
+  <div class="modal">
+    <div class="modal-title">✏️ EDITAR SESSÃO</div>
+    <input type="hidden" id="edit-sess-id">
+    <div class="inp-group"><div class="inp-label">Descrição</div><input class="inp" id="edit-sess-desc" type="text"></div>
+    <div class="inp-group">
+      <div class="inp-label">Fazenda</div>
+      <select class="inp" id="edit-sess-fazenda"><option value="">Selecione...</option></select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Número de contagens</div>
+      <select class="inp" id="edit-sess-rodadas">
+        <option value="1">1 contagem (simples)</option>
+        <option value="2">2 contagens (dupla)</option>
+        <option value="3">3 contagens (tripla)</option>
+      </select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Status</div>
+      <select class="inp" id="edit-sess-status">
+        <option value="aberta">Aberta</option>
+        <option value="em_contagem">Em contagem</option>
+        <option value="aguardando_revisao">Aguardando revisão</option>
+        <option value="fechada">Fechada</option>
+      </select>
+    </div>
+    <div class="inp-group">
+      <div class="inp-label">Substituir lista de itens (opcional)</div>
+      <div class="drop-zone" id="drop-lista-edit" onclick="document.getElementById('lista-file-edit').click()">
+        <div class="drop-zone-icon">📋</div>
+        <p id="drop-lista-edit-txt">Nova planilha de itens (opcional)</p>
+      </div>
+      <input type="file" id="lista-file-edit" accept=".xlsx,.xls,.csv" style="display:none" onchange="onListaFileEdit(this)">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal('modal-editar-sessao')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="salvarEdicaoSessao()">SALVAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Novo Endereço (inline no count) -->
+<div class="modal-overlay" id="modal-novo-endereco">
+  <div class="modal">
+    <div class="modal-title">📍 NOVO ENDEREÇO</div>
+    <div class="inp-group"><input class="inp" id="mod-novo-end" type="text" placeholder="Ex: A-01-03"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal('modal-novo-endereco')">CANCELAR</button>
+      <button class="btn btn-primary" onclick="confirmarNovoEndModal()">CONTAR NESTE ENDEREÇO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =========================================================
+//  FIREBASE
+// =========================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCwf-Yi6diLnZSBuCWrv-EftnZ5cHJsjC0",
+  projectId: "coletor-almoxarifado",
+  appId: "1:118692060682:web:3ad937217c3e2ffe7a09f3"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// =========================================================
+//  STATE
+// =========================================================
+let currentUser = null;
+let currentSessao = null;
+let currentProduto = null;
+let currentEnderecos = [];
+let importData = null;
+let importType = null;
+let listaItens = [];
+let listaItensEdit = [];
+let equipeSelIds = [];
+let allFazendas = [];
+let allUsuarios = [];
+let allSessoes = [];
+let saldoFazendaId = null; // contexto para tela saldo
+
+// =========================================================
+//  UTILS
+// =========================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = '', 2800);
+}
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function badgeSessao(st) {
+  const map = { aberta: ['badge-green', 'ABERTA'], em_contagem: ['badge-warn', 'EM CONTAGEM'], aguardando_revisao: ['badge-info', 'AGUARD. REVISÃO'], fechada: ['badge-gray', 'FECHADA'] };
+  const [cls, lbl] = map[st] || ['badge-gray', st];
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+// =========================================================
+//  LOGIN / LOGOUT
+// =========================================================
+async function doLogin() {
+  const login = document.getElementById('login-user').value.trim().toLowerCase();
+  const senha = document.getElementById('login-pass').value;
+  if (!login || !senha) { toast('Preencha login e senha', 'err'); return; }
+  try {
+    const snap = await db.collection('usuarios')
+      .where('login', '==', login)
+      .get();
+    const validDoc = snap.docs.find(d => d.data().senha === senha && d.data().ativo === true);
+    if (!validDoc) { toast('Login ou senha incorretos', 'err'); return; }
+    const doc = validDoc;
+    currentUser = { id: doc.id, ...doc.data() };
+    localStorage.setItem('cu', JSON.stringify(currentUser));
+    afterLogin();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+function doLogout() {
+  currentUser = null; currentSessao = null;
+  localStorage.removeItem('cu');
+  showScreen('screen-login');
+}
+function afterLogin() {
+  if (currentUser.perfil === 'supervisor') {
+    initSupervisor();
+  } else {
+    initAlmoxarife();
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// loadPendentes é chamado diretamente pelo botão INICIAR CONTAGEM
+
+// =========================================================
+//  ALMOXARIFE
+// =========================================================
+async function initAlmoxarife() {
+  document.getElementById('home-user-nome').textContent = currentUser.nome;
+  document.getElementById('home-fazenda-nome').textContent = currentUser.fazenda_nome || '';
+  showScreen('screen-home');
+  loadSessaoAtiva();
+}
+async function loadSessaoAtiva() {
+  if (!currentUser.fazenda_id) return;
+  const _rawSessoes = await db.collection('sessoes')
+    .where('fazenda_id', '==', currentUser.fazenda_id)
+    .get();
+  const _sessDocs = _rawSessoes.docs
+    .filter(d => ['aberta','em_contagem'].includes(d.data().status))
+    .sort((a,b)=>(b.data().criado_em?.toMillis()||0)-(a.data().criado_em?.toMillis()||0));
+  // Simula snap para o código abaixo
+  const snap = { docs: _sessDocs, empty: _sessDocs.length === 0 };
+  if (snap.empty) {
+    document.getElementById('home-sessao-desc').textContent = 'Nenhuma sessão aberta';
+    document.getElementById('home-sessao-info').textContent = '';
+    document.getElementById('home-stat-rodada').textContent = '—';
+    document.getElementById('home-stat-total').textContent = '0';
+    return;
+  }
+  const doc = snap.docs[0];
+  currentSessao = { id: doc.id, ...doc.data() };
+  // Verifica se este usuário está na equipe
+  if (currentSessao.equipe_ids && !currentSessao.equipe_ids.includes(currentUser.id)) {
+    document.getElementById('home-sessao-desc').textContent = 'Você não está na equipe desta sessão';
+    return;
+  }
+  document.getElementById('home-sessao-desc').textContent = currentSessao.descricao;
+  document.getElementById('home-sessao-badge').innerHTML = badgeSessao(currentSessao.status);
+  const rodada = currentSessao.rodada_atual || 1;
+  document.getElementById('home-stat-rodada').textContent = rodada;
+  const total = (currentSessao.lista_itens || []).length;
+  document.getElementById('home-stat-total').textContent = total;
+  // Contados nesta rodada por este usuário — filtra em JS para evitar índice
+  const _cSnapHome = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const contados = _cSnapHome.docs.filter(d=>d.data().usuario_id===currentUser.id && d.data().rodada===rodada).length;
+  document.getElementById('home-stat-contados').textContent = contados;
+  document.getElementById('home-sessao-info').textContent = `Rodada ${rodada} de ${currentSessao.total_rodadas}`;
+  if (total > 0) {
+    const pct = Math.round(contados / total * 100);
+    document.getElementById('home-progress-bar').style.display = '';
+    document.getElementById('home-progress-fill').style.width = pct + '%';
+  }
+  loadHomeHistory();
+}
+async function loadHomeHistory() {
+  if (!currentSessao) return;
+  const _snapH = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const _docsH = _snapH.docs
+    .filter(d => d.data().usuario_id === currentUser.id)
+    .sort((a,b) => (b.data().criado_em?.toMillis()||0)-(a.data().criado_em?.toMillis()||0))
+    .slice(0,10);
+  const snap = { docs: _docsH, empty: _docsH.length===0 };
+  const el = document.getElementById('home-history');
+  if (snap.empty) { el.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>Nenhuma contagem</p></div>'; return; }
+  el.innerHTML = snap.docs.map(d => {
+    const c = d.data();
+    return `<div class="list-item" style="cursor:default">
+      <div class="list-item-icon">📦</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${c.codigo_sap}</div>
+        <div class="list-item-sub">${c.localizacao} · ${fmtDate(c.criado_em)}</div>
+      </div>
+      <div class="list-item-right">
+        <span style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent)">${c.quantidade}</span>
+        <span style="font-size:10px;color:var(--text3)">${c.unidade || ''}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// =========================================================
+//  CONTAGEM
+// =========================================================
+function iniciarContagem() {
+  if (!currentSessao) {
+    toast('Nenhuma sessão ativa', 'err');
+    return;
+  }
+  showScreen('screen-count');
+  loadPendentes();
+}
+
+function togglePendentes() {
+  const list = document.getElementById('pendentes-list');
+  const arrow = document.getElementById('pendentes-arrow');
+  const show = list.classList.toggle('show');
+  arrow.classList.toggle('open', show);
+}
+
+function selecionarPendente(cod) {
+  document.getElementById('count-cod').value = cod;
+  // Fecha a lista para dar espaço ao formulário
+  document.getElementById('pendentes-list').classList.remove('show');
+  document.getElementById('pendentes-arrow').classList.remove('open');
+  buscarProdutoContagem();
+}
+
+async function loadPendentes() {
+  console.log('[Pendentes] currentSessao:', currentSessao ? currentSessao.id : 'NULL');
+  if (!currentSessao) {
+    document.getElementById('pendentes-wrap').style.display = 'none';
+    return;
+  }
+  const lista = currentSessao.lista_itens || [];
+  console.log('[Pendentes] lista_itens:', lista.length, 'itens', lista.slice(0,3));
+  if (lista.length === 0) {
+    document.getElementById('pendentes-wrap').style.display = 'none';
+    document.getElementById('pendentes-list').innerHTML = '<div class="pendentes-empty">Nenhum item na lista desta sessão.<br><small style="color:var(--text3)">Verifique se a planilha foi importada ao criar a sessão.</small></div>';
+    document.getElementById('pendentes-wrap').style.display = 'block';
+    return;
+  }
+  document.getElementById('pendentes-wrap').style.display = 'block';
+  document.getElementById('pendentes-list').innerHTML = '<div class="pendentes-empty">Carregando...</div>';
+  const rodada = currentSessao.rodada_atual || 1;
+
+  // Busca o que já foi contado nesta rodada por este usuário
+  const snap = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const jaContados = new Set(
+    snap.docs
+      .filter(d => d.data().usuario_id === currentUser.id && d.data().rodada === rodada)
+      .map(d => d.data().codigo_sap)
+  );
+
+  // Busca descrições dos produtos para exibir (em lote)
+  const prodSnap = await db.collection('produtos')
+    .where('fazenda_id', '==', currentUser.fazenda_id)
+    .get();
+  const prodMap = {};
+  prodSnap.docs.forEach(d => { prodMap[d.data().codigo_sap] = d.data(); });
+
+  // Separa pendentes e contados
+  const pendentes = lista.filter(cod => !jaContados.has(cod));
+  const contados  = lista.filter(cod =>  jaContados.has(cod));
+
+  document.getElementById('pendentes-count-label').textContent =
+    `${pendentes.length} de ${lista.length}`;
+
+  const el = document.getElementById('pendentes-list');
+  if (lista.length === 0) {
+    el.innerHTML = '<div class="pendentes-empty">Nenhum item na lista</div>';
+    return;
+  }
+
+  const renderItem = (cod, feito) => {
+    const prod = prodMap[cod];
+    const desc = prod ? prod.descricao : '';
+    return `<div class="pendente-item${feito ? ' contado' : ''}" onclick="${feito ? '' : `selecionarPendente('${cod}')`}">
+      <div style="min-width:0;flex:1">
+        <div class="pendente-cod">${feito ? '✓ ' : ''}${cod}</div>
+        ${desc ? `<div class="pendente-desc">${desc}</div>` : ''}
+      </div>
+      ${feito ? '<span style="color:var(--accent);font-size:14px">✓</span>' : '<span class="pendente-arrow">→</span>'}
+    </div>`;
+  };
+
+  el.innerHTML =
+    pendentes.map(cod => renderItem(cod, false)).join('') +
+    (contados.length > 0
+      ? `<div style="padding:6px 14px;font-family:var(--mono);font-size:10px;color:var(--text3);background:var(--bg3);text-transform:uppercase;letter-spacing:.06em">Já contados (${contados.length})</div>` +
+        contados.map(cod => renderItem(cod, true)).join('')
+      : '');
+}
+
+async function buscarProdutoContagem() {
+  const cod = document.getElementById('count-cod').value.trim().toUpperCase();
+  if (!cod) { toast('Digite o código SAP', 'err'); return; }
+  // Verifica se está na lista
+  if (currentSessao && currentSessao.lista_itens && !currentSessao.lista_itens.includes(cod)) {
+    toast('Produto não está na lista desta sessão', 'err'); return;
+  }
+  try {
+    const _snapProd = await db.collection('produtos')
+      .where('codigo_sap', '==', cod)
+      .get();
+    const _docProd = _snapProd.docs.find(d => d.data().fazenda_id===currentUser.fazenda_id);
+    if (!_docProd) { toast('Produto não encontrado', 'err'); return; }
+    const doc = _docProd;
+    const snap = { docs: [_docProd] };
+    currentProduto = { id: doc.id, ...doc.data() };
+    document.getElementById('count-prod-cod').textContent = currentProduto.codigo_sap;
+    document.getElementById('count-prod-desc').textContent = currentProduto.descricao;
+    document.getElementById('count-prod-grupo').textContent = currentProduto.grupo || '—';
+    document.getElementById('count-prod-un').textContent = currentProduto.unidade || '—';
+    document.getElementById('count-end-grupo').textContent = currentProduto.grupo || '—';
+    document.getElementById('count-end-un').textContent = currentProduto.unidade || '—';
+    // Carrega endereços
+    const _eSnapAll = await db.collection('enderecos')
+      .where('codigo_sap', '==', cod)
+      .get();
+    const eSnap = { docs: _eSnapAll.docs.filter(d => d.data().fazenda_id===currentUser.fazenda_id) };
+    currentEnderecos = eSnap.docs.map(d => d.data().localizacao);
+    const sel = document.getElementById('count-endereco');
+    sel.innerHTML = currentEnderecos.map(e => `<option value="${e}">${e}</option>`).join('');
+    if (currentEnderecos.length === 0) sel.innerHTML = '<option value="">— Sem endereço cadastrado —</option>';
+    atualizarEndSelecionado();
+    document.getElementById('count-produto-info').style.display = 'block';
+    document.getElementById('count-qty').value = 0;
+    // Progresso
+    updateCountProgress();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+function atualizarEndSelecionado() {
+  const sel = document.getElementById('count-endereco');
+  document.getElementById('count-end-selecionado').textContent = sel.value || 'ENDEREÇO';
+}
+document.getElementById('count-endereco').addEventListener('change', atualizarEndSelecionado);
+function changeQty(delta) {
+  const inp = document.getElementById('count-qty');
+  const v = parseInt(inp.value) || 0;
+  inp.value = Math.max(0, v + delta);
+}
+function mostrarNovoEndereco() {
+  document.getElementById('novo-endereco-wrap').style.display = 'block';
+  document.getElementById('btn-add-end').style.display = 'none';
+}
+function cancelarNovoEndereco() {
+  document.getElementById('novo-endereco-wrap').style.display = 'none';
+  document.getElementById('btn-add-end').style.display = 'flex';
+}
+async function confirmarNovoEndereco() {
+  const loc = document.getElementById('count-novo-end').value.trim().toUpperCase();
+  if (!loc) { toast('Digite o endereço', 'err'); return; }
+  if (!currentProduto) return;
+  await db.collection('enderecos').add({
+    codigo_sap: currentProduto.codigo_sap,
+    localizacao: loc,
+    fazenda_id: currentUser.fazenda_id,
+    criado_em: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  currentEnderecos.push(loc);
+  const sel = document.getElementById('count-endereco');
+  sel.innerHTML += `<option value="${loc}">${loc}</option>`;
+  sel.value = loc;
+  atualizarEndSelecionado();
+  cancelarNovoEndereco();
+  toast('Endereço adicionado', 'ok');
+}
+async function confirmarNovoEndModal() {
+  const loc = document.getElementById('mod-novo-end').value.trim().toUpperCase();
+  if (!loc) { toast('Digite o endereço', 'err'); return; }
+  if (currentProduto) {
+    await db.collection('enderecos').add({
+      codigo_sap: currentProduto.codigo_sap,
+      localizacao: loc,
+      fazenda_id: currentUser.fazenda_id,
+      criado_em: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    currentEnderecos.push(loc);
+    const sel = document.getElementById('count-endereco');
+    sel.innerHTML += `<option value="${loc}">${loc}</option>`;
+    sel.value = loc;
+    atualizarEndSelecionado();
+  }
+  closeModal('modal-novo-endereco');
+  toast('Endereço adicionado', 'ok');
+}
+async function confirmarContagem() {
+  if (!currentProduto) { toast('Busque um produto primeiro', 'err'); return; }
+  if (!currentSessao) { toast('Nenhuma sessão ativa', 'err'); return; }
+  const loc = document.getElementById('count-endereco').value;
+  if (!loc) { toast('Selecione um endereço', 'err'); return; }
+  const qty = parseInt(document.getElementById('count-qty').value) || 0;
+  const obs = document.getElementById('count-obs').value.trim();
+  const rodada = currentSessao.rodada_atual || 1;
+  // Verifica se já contou este item nesta rodada
+  const _checkSnap = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const jaContou = _checkSnap.docs.some(d => {
+    const x = d.data();
+    return x.usuario_id===currentUser.id && x.codigo_sap===currentProduto.codigo_sap && x.localizacao===loc && x.rodada===rodada;
+  });
+  if (jaContou) { toast('Já contado nesta rodada', 'err'); return; }
+  try {
+    await db.collection('contagens').add({
+      sessao_id: currentSessao.id,
+      usuario_id: currentUser.id,
+      usuario_nome: currentUser.nome,
+      codigo_sap: currentProduto.codigo_sap,
+      descricao: currentProduto.descricao,
+      grupo: currentProduto.grupo || '',
+      unidade: currentProduto.unidade || '',
+      localizacao: loc,
+      quantidade: qty,
+      rodada: rodada,
+      fazenda_id: currentUser.fazenda_id,
+      observacao: obs,
+      criado_em: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('✓ Contagem salva', 'ok');
+    document.getElementById('count-cod').value = '';
+    document.getElementById('count-produto-info').style.display = 'none';
+    document.getElementById('count-obs').value = '';
+    currentProduto = null;
+    updateCountProgress();
+    loadCountHistory();
+    loadHomeHistory();
+    loadPendentes(); // atualiza lista de pendentes
+    // Verifica sessão 100%
+    checkSessaoCompleta();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+async function updateCountProgress() {
+  if (!currentSessao) return;
+  const total = (currentSessao.lista_itens || []).length;
+  const rodada = currentSessao.rodada_atual || 1;
+  const _snapP = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const contados = _snapP.docs.filter(d => d.data().usuario_id===currentUser.id && d.data().rodada===rodada).length;
+  const pct = total > 0 ? Math.round(contados / total * 100) : 0;
+  document.getElementById('count-progress-text').textContent = `${contados}/${total}`;
+  document.getElementById('count-prog-num').textContent = `${contados} de ${total}`;
+  document.getElementById('count-prog-fill').style.width = pct + '%';
+  document.getElementById('home-stat-contados').textContent = contados;
+  // Mostra botão FINALIZAR quando contou todos os itens
+  const jaFinalizou = currentSessao && currentUser
+    ? (currentSessao[`finalizado_r${rodada}_uid_${currentUser.id}`] === true)
+    : false;
+  const finalizarWrap = document.getElementById('finalizar-wrap');
+  if (finalizarWrap) {
+    finalizarWrap.style.display = (!jaFinalizou && total > 0 && contados >= total) ? 'block' : 'none';
+  }
+}
+async function loadCountHistory() {
+  if (!currentSessao) return;
+  const _snapCH = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const _docsCH = _snapCH.docs
+    .filter(d => d.data().usuario_id === currentUser.id)
+    .sort((a,b) => (b.data().criado_em?.toMillis()||0)-(a.data().criado_em?.toMillis()||0))
+    .slice(0,20);
+  const snap = { docs: _docsCH, empty: _docsCH.length===0 };
+  const el = document.getElementById('count-history');
+  if (snap.empty) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>Nenhum item contado ainda</p></div>'; return; }
+  el.innerHTML = snap.docs.map(d => {
+    const c = d.data();
+    return `<div class="list-item" style="cursor:default">
+      <div class="list-item-icon">✅</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${c.codigo_sap} — ${c.descricao || ''}</div>
+        <div class="list-item-sub">${c.localizacao} · R${c.rodada}</div>
+      </div>
+      <div class="list-item-right">
+        <span style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--accent)">${c.quantidade}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+// ─── Almoxarife finaliza sua rodada ──────────────────────────
+async function finalizarContagem() {
+  if (!currentSessao) return;
+  const rodada = currentSessao.rodada_atual || 1;
+  const lista = currentSessao.lista_itens || [];
+
+  // Confirma que contou pelo menos 1 item
+  const snap = await db.collection('contagens')
+    .where('sessao_id', '==', currentSessao.id)
+    .get();
+  const meus = snap.docs.filter(d => d.data().usuario_id === currentUser.id && d.data().rodada === rodada);
+  if (meus.length === 0) {
+    toast('Você ainda não contou nenhum item nesta rodada', 'err');
+    return;
+  }
+
+  // Marca finalização desta rodada por este usuário
+  await db.collection('sessoes').doc(currentSessao.id).update({
+    [`finalizado_r${rodada}_uid_${currentUser.id}`]: true,
+    status: 'em_contagem'
+  });
+
+  document.getElementById('finalizar-wrap').style.display = 'none';
+  toast('✅ Sua contagem foi finalizada!', 'ok');
+
+  // Verifica se todos da equipe finalizaram
+  await checkSessaoCompleta();
+}
+
+// ─── Supervisor avança rodada ─────────────────────────────────
+async function supervisorAvancar(sessId) {
+  const s = allSessoes.find(x => x.id === sessId);
+  if (!s) return;
+  const rodadaAtual = s.rodada_atual || 1;
+  const novaRodada = rodadaAtual + 1;
+  if (s.status === 'aberta') {
+    // Inicia a 1ª rodada
+    await db.collection('sessoes').doc(sessId).update({
+      status: 'em_contagem',
+      rodada_atual: 1
+    });
+    toast('▶ Sessão iniciada — Rodada 1', 'ok');
+  } else if (novaRodada <= s.total_rodadas) {
+    await db.collection('sessoes').doc(sessId).update({
+      rodada_atual: novaRodada,
+      status: 'em_contagem'
+    });
+    toast(`⚡ Rodada ${novaRodada} liberada!`, 'ok');
+  }
+  await loadSessoesSuper();
+  populateSessaoSelects();
+}
+
+// ─── Supervisor fecha sessão e gera divergências ──────────────
+async function supervisorFechar(sessId) {
+  if (!confirm('Fechar a sessão e gerar relatório de divergências?')) return;
+  await db.collection('sessoes').doc(sessId).update({
+    status: 'fechada',
+    fechado_em: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  toast('🔒 Sessão fechada! Veja as divergências na aba DIVERG.', 'ok');
+  await loadSessoesSuper();
+  populateSessaoSelects();
+  // Abre aba divergências direto
+  supTab('diverg');
+  document.getElementById('diverg-sessao-sel').value = sessId;
+  loadDiverg();
+}
+
+async function checkSessaoCompleta() {
+  if (!currentSessao) return;
+  const rodada = currentSessao.rodada_atual || 1;
+  const equipe = currentSessao.equipe_ids || [];
+  if (equipe.length === 0) return;
+
+  // Busca a sessão atualizada no Firestore para verificar finalizações
+  const sessDoc = await db.collection('sessoes').doc(currentSessao.id).get();
+  const sessData = sessDoc.data();
+
+  // Verifica se todos da equipe finalizaram esta rodada
+  const todosFinalizaram = equipe.every(uid => sessData[`finalizado_r${rodada}_uid_${uid}`] === true);
+
+  if (todosFinalizaram) {
+    const totalRodadas = currentSessao.total_rodadas;
+    const sessaoFinalizada = rodada >= totalRodadas;
+    await db.collection('sessoes').doc(currentSessao.id).update({
+      [`rodada_${rodada}_completa`]: true,
+      status: sessaoFinalizada ? 'aguardando_revisao' : 'em_contagem'
+    });
+    await db.collection('notificacoes').add({
+      sessao_id: currentSessao.id,
+      sessao_desc: currentSessao.descricao,
+      fazenda_id: currentUser.fazenda_id,
+      fazenda_nome: currentUser.fazenda_nome || '',
+      rodada: rodada,
+      total_rodadas: totalRodadas,
+      tipo: sessaoFinalizada ? 'sessao_completa' : 'rodada_completa',
+      lida: false,
+      criado_em: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    if (sessaoFinalizada) {
+      toast('🎉 Todas as rodadas concluídas! Supervisor notificado.', 'ok');
+    } else {
+      toast(`⚡ Rodada ${rodada} completa! Aguarde o supervisor liberar a próxima.`, 'ok');
+    }
+  }
+}
+
+// =========================================================
+//  SUPERVISOR — INIT
+// =========================================================
+async function initSupervisor() {
+  document.getElementById('sup-fazenda-nome').textContent = 'Supervisor';
+  showScreen('screen-supervisor');
+  await loadFazendas();
+  await loadAllUsuarios();
+  loadSessoesSuper();
+  populateSessaoSelects();
+  iniciarListenerNotificacoes();
+}
+async function loadFazendas() {
+  const snap = await db.collection('fazendas').orderBy('nome').get();
+  allFazendas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderFazendas();
+  populateFazendaSelects();
+}
+function renderFazendas() {
+  const el = document.getElementById('list-fazendas');
+  if (!allFazendas.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🌿</div><p>Nenhuma fazenda cadastrada</p></div>'; return; }
+  el.innerHTML = allFazendas.map(f => `
+    <div class="list-item">
+      <div class="list-item-icon">🌿</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${f.nome}</div>
+        <div class="list-item-sub">${f.codigo || ''}</div>
+      </div>
+      <div class="list-item-right">
+        <button class="btn btn-secondary btn-sm" onclick="editFazenda('${f.id}')">✏️</button>
+      </div>
+    </div>`).join('');
+}
+function populateFazendaSelects() {
+  const opts = allFazendas.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  ['sess-fazenda', 'edit-sess-fazenda', 'prod-fazenda-sel', 'usr-fazenda', 'sup-saldo-fazenda-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const first = el.options[0].value === '' ? el.options[0].outerHTML : '';
+    el.innerHTML = (first || '') + opts;
+  });
+  // Saldo filter no modal dedicado
+  const sf = document.getElementById('saldo-fazenda-filter');
+  if (sf) sf.innerHTML = '<option value="">Selecione a fazenda...</option>' + opts;
+}
+async function loadAllUsuarios() {
+  const snap = await db.collection('usuarios').orderBy('nome').get();
+  allUsuarios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUsuarios();
+}
+function renderUsuarios() {
+  const el = document.getElementById('list-usuarios');
+  const list = allUsuarios.filter(u => u.perfil !== 'supervisor');
+  document.getElementById('usr-count').textContent = list.length;
+  if (!list.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>Nenhum usuário</p></div>'; return; }
+  el.innerHTML = list.map(u => {
+    const faz = allFazendas.find(f => f.id === u.fazenda_id);
+    return `<div class="list-item">
+      <div class="list-item-icon">👤</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${u.nome}</div>
+        <div class="list-item-sub">${u.login} · ${faz ? faz.nome : '—'}</div>
+      </div>
+      <div class="list-item-right">
+        <span class="badge ${u.ativo ? 'badge-green' : 'badge-gray'}">${u.ativo ? 'ATIVO' : 'INATIVO'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="editUsuario('${u.id}')" style="margin-top:4px">✏️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function loadSessoesSuper() {
+  const snap = await db.collection('sessoes').orderBy('criado_em', 'desc').get();
+  allSessoes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderSessoes();
+}
+function renderSessoes() {
+  const el = document.getElementById('list-sessoes');
+  if (!allSessoes.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">🗂️</div><p>Nenhuma sessão</p></div>'; return; }
+  el.innerHTML = allSessoes.map(s => {
+    const faz = allFazendas.find(f => f.id === s.fazenda_id);
+    const total = (s.lista_itens || []).length;
+    const rodada = s.rodada_atual || 1;
+    const rodadaCompleta = s[`rodada_${rodada}_completa`];
+    const sessaoCompleta = s.status === 'aguardando_revisao';
+    // Linha de alerta contextual
+    let alertaHtml = '';
+    if (sessaoCompleta) {
+      alertaHtml = `<div class="sessao-alert-row ok">
+        <div class="sessao-alert-dot"></div>
+        <div class="sessao-alert-txt">✅ TODAS AS RODADAS CONCLUÍDAS — AGUARDANDO REVISÃO</div>
+      </div>`;
+    } else if (rodadaCompleta && s.status !== 'fechada') {
+      alertaHtml = `<div class="sessao-alert-row">
+        <div class="sessao-alert-dot"></div>
+        <div class="sessao-alert-txt">⚡ RODADA ${rodada} COMPLETA — AVANÇAR PARA PRÓXIMA</div>
+      </div>`;
+    }
+    const icone = sessaoCompleta ? '🎉' : rodadaCompleta ? '⚡' : '🗂️';
+    return `<div class="list-item" style="${sessaoCompleta ? 'border-color:rgba(0,212,170,.4)' : rodadaCompleta ? 'border-color:rgba(245,166,35,.4)' : ''}">
+      <div class="list-item-icon">${icone}</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${s.descricao}</div>
+        <div class="list-item-sub">${faz ? faz.nome : '—'} · ${total} itens · R${rodada}/${s.total_rodadas}</div>
+        ${alertaHtml}
+      </div>
+      <div class="list-item-right" style="min-width:90px">
+        ${badgeSessao(s.status)}
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+          ${s.status === 'aberta' ? `<button class="btn btn-primary btn-sm" onclick="supervisorAvancar('${s.id}')">▶ INICIAR</button>` : ''}
+          ${(s.status === 'em_contagem' && rodadaCompleta && rodada < s.total_rodadas) ? `<button class="btn btn-warn btn-sm" onclick="supervisorAvancar('${s.id}')">⚡ PRÓX. RODADA</button>` : ''}
+          ${sessaoCompleta ? `<button class="btn btn-primary btn-sm" onclick="supervisorFechar('${s.id}')">🔒 FECHAR</button>` : ''}
+          ${s.status === 'fechada' ? `<button class="btn btn-secondary btn-sm" onclick="supTab('diverg');document.getElementById('diverg-sessao-sel').value='${s.id}';loadDiverg()">📊 VER</button>` : ''}
+          <div class="btn-row" style="gap:4px">
+            <button class="btn btn-secondary btn-sm" onclick="editSessao('${s.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSessao('${s.id}')">🗑️</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function populateSessaoSelects() {
+  const opts = allSessoes.map(s => `<option value="${s.id}">${s.descricao}</option>`).join('');
+  ['resumo-sessao-sel', 'diverg-sessao-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">Selecione uma sessão...</option>' + opts;
+  });
+}
+function supTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['sessoes','fazendas','produtos','usuarios','saldo','resumo','diverg'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'saldo') initSupSaldo();
+}
+
+// =========================================================
+//  NOTIFICAÇÕES — LISTENER TEMPO REAL
+// =========================================================
+let _notifListener = null;
+let _notifCache = []; // notificações não lidas em memória
+
+function iniciarListenerNotificacoes() {
+  if (_notifListener) _notifListener(); // cancela listener anterior
+  _notifListener = db.collection('notificacoes')
+    .where('lida', '==', false)
+    .onSnapshot(snap => {
+      _notifCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      atualizarUINotificacoes();
+    }, err => {
+      // Se falhar (sem índice), tenta polling a cada 30s
+      console.warn('onSnapshot notif falhou, usando polling:', err.message);
+      _notifListener = null;
+      pollingNotificacoes();
+    });
+}
+
+function pollingNotificacoes() {
+  // Fallback: polling manual a cada 30s
+  setInterval(async () => {
+    try {
+      const snap = await db.collection('notificacoes').get();
+      _notifCache = snap.docs.map(d=>({id:d.id,...d.data()})).filter(n=>!n.lida);
+      atualizarUINotificacoes();
+    } catch(e) { /* silencia */ }
+  }, 30000);
+}
+
+function atualizarUINotificacoes() {
+  const total = _notifCache.length;
+  const badge = document.getElementById('tab-badge-sessoes');
+  const banner = document.getElementById('notif-banner');
+  // Badge na aba
+  if (total > 0) {
+    badge.innerHTML = `<span class="tab-badge">${total}</span>`;
+  } else {
+    badge.innerHTML = '';
+  }
+  // Banner — mostra a notificação mais recente não lida
+  if (total === 0) {
+    banner.classList.remove('show','completo');
+    return;
+  }
+  // Ordena: sessao_completa tem prioridade
+  const sorted = [..._notifCache].sort((a,b) => {
+    if (a.tipo === 'sessao_completa' && b.tipo !== 'sessao_completa') return -1;
+    if (b.tipo === 'sessao_completa' && a.tipo !== 'sessao_completa') return 1;
+    return 0;
+  });
+  const n = sorted[0];
+  const isCompleto = n.tipo === 'sessao_completa';
+  document.getElementById('notif-banner-icon').textContent = isCompleto ? '🎉' : '⚡';
+  document.getElementById('notif-banner-title').textContent = isCompleto
+    ? `SESSÃO CONCLUÍDA${total > 1 ? ` (+${total-1} mais)` : ''}`
+    : `RODADA ${n.rodada} COMPLETA${total > 1 ? ` (+${total-1} mais)` : ''}`;
+  document.getElementById('notif-banner-msg').textContent = isCompleto
+    ? `"${n.sessao_desc}" (${n.fazenda_nome}) — todas as ${n.total_rodadas} rodadas finalizadas. Clique para revisar.`
+    : `"${n.sessao_desc}" (${n.fazenda_nome}) — rodada ${n.rodada} de ${n.total_rodadas} finalizada pela equipe.`;
+  banner.className = `notif-banner show${isCompleto ? ' completo' : ''}`;
+  // Atualiza a lista de sessões para refletir alertas
+  renderSessoes();
+}
+
+async function fecharBanner() {
+  // Marca todas como lidas
+  const batch = db.batch();
+  _notifCache.forEach(n => {
+    batch.update(db.collection('notificacoes').doc(n.id), { lida: true });
+  });
+  try { await batch.commit(); } catch(e) { /* silencia */ }
+  _notifCache = [];
+  document.getElementById('notif-banner').classList.remove('show','completo');
+  document.getElementById('tab-badge-sessoes').innerHTML = '';
+}
+
+// =========================================================
+//  FAZENDAS CRUD
+// =========================================================
+async function salvarFazenda() {
+  const nome = document.getElementById('faz-nome').value.trim();
+  const cod = document.getElementById('faz-cod').value.trim().toUpperCase();
+  if (!nome) { toast('Nome obrigatório', 'err'); return; }
+  const editId = document.getElementById('faz-edit-id').value;
+  try {
+    if (editId) {
+      await db.collection('fazendas').doc(editId).update({ nome, codigo: cod });
+    } else {
+      await db.collection('fazendas').add({ nome, codigo: cod, criado_em: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeModal('modal-nova-fazenda');
+    toast('Fazenda salva', 'ok');
+    await loadFazendas();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+function editFazenda(id) {
+  const f = allFazendas.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('faz-edit-id').value = id;
+  document.getElementById('faz-nome').value = f.nome;
+  document.getElementById('faz-cod').value = f.codigo || '';
+  openModal('modal-nova-fazenda');
+}
+
+// =========================================================
+//  SESSÕES CRUD
+// =========================================================
+async function loadEquipeOptions() {
+  const fazId = document.getElementById('sess-fazenda').value;
+  const wrap = document.getElementById('equipe-options');
+  equipeSelIds = [];
+  if (!fazId) { wrap.innerHTML = ''; return; }
+  const lista = allUsuarios.filter(u => u.fazenda_id === fazId && u.perfil === 'almoxarife' && u.ativo);
+  wrap.innerHTML = lista.map(u =>
+    `<div class="chip" id="chip-${u.id}" onclick="toggleEquipe('${u.id}')">${u.nome}</div>`
+  ).join('');
+}
+function toggleEquipe(uid) {
+  const chip = document.getElementById('chip-' + uid);
+  if (equipeSelIds.includes(uid)) {
+    equipeSelIds = equipeSelIds.filter(x => x !== uid);
+    chip.classList.remove('active');
+  } else {
+    equipeSelIds.push(uid);
+    chip.classList.add('active');
+  }
+}
+// Aliases aceitos para coluna de código SAP (case-insensitive, sem acento)
+const COD_SAP_ALIASES = [
+  'codigo_sap','cod_sap','codsap','codigo','cod','item_code','itemcode',
+  'codigo_item','item','sap','numero','num','part_number','partnumber',
+  'referencia','ref','material','mat','sku'
+];
+function normHeader(h) {
+  return String(h||'')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]/g,'_')
+    .replace(/_+/g,'_')
+    .replace(/^_|_$/g,'');
+}
+function pareceCodigoSAP(v) {
+  if (!v || String(v).length < 2) return false;
+  const s = String(v).trim().toUpperCase();
+  if (/\s/.test(s)) return false;
+  if (/^\d{1,2}$/.test(s)) return false;
+  return /^[A-Z0-9][A-Z0-9\-\.]{1,}$/.test(s);
+}
+function extrairCodigosDaLista(rows) {
+  if (!rows || rows.length === 0) return [];
+  const header = rows[0];
+  let colIdx = -1;
+  if (Array.isArray(header)) {
+    colIdx = header.findIndex(h => {
+      const norm = normHeader(h);
+      return COD_SAP_ALIASES.includes(norm) || norm.startsWith('cod') || norm.includes('sap') || norm.includes('item');
+    });
+  }
+  let codigos = [];
+  if (colIdx !== -1) {
+    codigos = rows.slice(1)
+      .map(r => String(Array.isArray(r) ? (r[colIdx] != null ? r[colIdx] : '') : '').trim().toUpperCase())
+      .filter(v => pareceCodigoSAP(v));
+  } else {
+    // Sem coluna reconhecida — varre todos os valores buscando padrão de código SAP
+    const todosValores = rows.flat().map(v => String(v||'').trim().toUpperCase());
+    codigos = todosValores.filter(v => pareceCodigoSAP(v));
+    // Último recurso: primeira coluna inteira
+    if (codigos.length === 0) {
+      codigos = rows
+        .map(r => String(Array.isArray(r) ? (r[0] != null ? r[0] : '') : r || '').trim().toUpperCase())
+        .filter(v => v && v.length > 1);
+    }
+  }
+  const resultado = [...new Set(codigos.filter(v => v.length > 0))];
+  console.log('[Lista] ' + resultado.length + ' codigos. Amostra:', resultado.slice(0,5));
+  return resultado;
+}
+function onListaFile(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      listaItens = extrairCodigosDaLista(rows);
+      document.getElementById('drop-lista-txt').textContent = `✓ ${listaItens.length} itens carregados`;
+      toast(`${listaItens.length} itens na lista`, 'ok');
+    } catch (err) { toast('Erro ao ler planilha', 'err'); }
+  };
+  reader.readAsBinaryString(f);
+}
+function onListaFileEdit(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      listaItensEdit = extrairCodigosDaLista(rows);
+      document.getElementById('drop-lista-edit-txt').textContent = `✓ ${listaItensEdit.length} itens`;
+      toast(`${listaItensEdit.length} itens`, 'ok');
+    } catch (err) { toast('Erro ao ler planilha', 'err'); }
+  };
+  reader.readAsBinaryString(f);
+}
+async function criarSessao() {
+  const fazId = document.getElementById('sess-fazenda').value;
+  const desc = document.getElementById('sess-desc').value.trim();
+  const rodadas = parseInt(document.getElementById('sess-rodadas').value);
+  if (!fazId) { toast('Selecione a fazenda', 'err'); return; }
+  if (!desc) { toast('Descrição obrigatória', 'err'); return; }
+  const faz = allFazendas.find(f => f.id === fazId);
+  try {
+    await db.collection('sessoes').add({
+      fazenda_id: fazId,
+      fazenda_nome: faz ? faz.nome : '',
+      descricao: desc,
+      status: 'aberta',
+      rodada_atual: 1,
+      total_rodadas: rodadas,
+      lista_itens: listaItens,
+      equipe_ids: equipeSelIds,
+      criado_em: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeModal('modal-nova-sessao');
+    listaItens = [];
+    equipeSelIds = [];
+    document.getElementById('drop-lista-txt').textContent = 'Planilha com códigos SAP dos itens a contar';
+    toast('Sessão criada', 'ok');
+    await loadSessoesSuper();
+    populateSessaoSelects();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+function editSessao(id) {
+  const s = allSessoes.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('edit-sess-id').value = id;
+  document.getElementById('edit-sess-desc').value = s.descricao;
+  document.getElementById('edit-sess-rodadas').value = s.total_rodadas;
+  document.getElementById('edit-sess-status').value = s.status;
+  listaItensEdit = [];
+  openModal('modal-editar-sessao');
+}
+async function salvarEdicaoSessao() {
+  const id = document.getElementById('edit-sess-id').value;
+  const desc = document.getElementById('edit-sess-desc').value.trim();
+  const rodadas = parseInt(document.getElementById('edit-sess-rodadas').value);
+  const status = document.getElementById('edit-sess-status').value;
+  const upd = { descricao: desc, total_rodadas: rodadas, status };
+  if (listaItensEdit.length > 0) upd.lista_itens = listaItensEdit;
+  try {
+    await db.collection('sessoes').doc(id).update(upd);
+    closeModal('modal-editar-sessao');
+    toast('Sessão atualizada', 'ok');
+    await loadSessoesSuper();
+    populateSessaoSelects();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+async function deleteSessao(id) {
+  if (!confirm('Excluir sessão e todas as contagens?')) return;
+  const snap = await db.collection('contagens').where('sessao_id', '==', id).get();
+  const batch = db.batch();
+  snap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(db.collection('sessoes').doc(id));
+  await batch.commit();
+  toast('Sessão excluída', 'ok');
+  await loadSessoesSuper();
+  populateSessaoSelects();
+}
+
+// =========================================================
+//  USUÁRIOS CRUD
+// =========================================================
+async function salvarUsuario() {
+  const nome = document.getElementById('usr-nome').value.trim();
+  const login = document.getElementById('usr-login').value.trim().toLowerCase();
+  const senha = document.getElementById('usr-senha').value;
+  const fazId = document.getElementById('usr-fazenda').value;
+  const perfil = document.getElementById('usr-perfil').value;
+  const ativo = document.getElementById('usr-ativo').value === 'true';
+  const editId = document.getElementById('usr-edit-id').value;
+  if (!nome || !login) { toast('Nome e login obrigatórios', 'err'); return; }
+  const faz = allFazendas.find(f => f.id === fazId);
+  const data = { nome, login, perfil, ativo, fazenda_id: fazId || null, fazenda_nome: faz ? faz.nome : null };
+  if (senha) data.senha = senha;
+  try {
+    if (editId) {
+      await db.collection('usuarios').doc(editId).update(data);
+    } else {
+      if (!senha) { toast('Senha obrigatória para novo usuário', 'err'); return; }
+      await db.collection('usuarios').add({ ...data, criado_em: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    closeModal('modal-novo-usuario');
+    toast('Usuário salvo', 'ok');
+    await loadAllUsuarios();
+  } catch (e) { toast('Erro: ' + e.message, 'err'); }
+}
+function editUsuario(id) {
+  const u = allUsuarios.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('usr-edit-id').value = id;
+  document.getElementById('usr-nome').value = u.nome;
+  document.getElementById('usr-login').value = u.login;
+  document.getElementById('usr-senha').value = '';
+  document.getElementById('usr-fazenda').value = u.fazenda_id || '';
+  document.getElementById('usr-perfil').value = u.perfil;
+  document.getElementById('usr-ativo').value = u.ativo ? 'true' : 'false';
+  openModal('modal-novo-usuario');
+}
+
+// =========================================================
+//  PRODUTOS — IMPORT
+// =========================================================
+async function loadProdutos() {
+  const fazId = document.getElementById('prod-fazenda-sel').value;
+  const el = document.getElementById('list-produtos');
+  if (!fazId) { el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Selecione uma fazenda</p></div>'; return; }
+  const _rawProds = await db.collection('produtos').where('fazenda_id', '==', fazId).get();
+  const snap = { docs: _rawProds.docs.filter(d=>d.data().ativo!==false).sort((a,b)=>a.data().codigo_sap.localeCompare(b.data().codigo_sap)), size: 0 };
+  snap.size = snap.docs.length;
+  document.getElementById('prod-count').textContent = snap.size;
+  if (snap.empty) { el.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nenhum produto importado</p></div>'; return; }
+  el.innerHTML = snap.docs.map(d => {
+    const p = d.data();
+    return `<div class="list-item" style="cursor:default">
+      <div class="list-item-icon">📦</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${p.codigo_sap}</div>
+        <div class="list-item-sub">${p.descricao} · ${p.grupo || ''} · ${p.unidade || ''}</div>
+      </div>
+      <div class="list-item-right">
+        <button class="btn btn-danger btn-sm" onclick="inativarProduto('${d.id}')">🚫</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function inativarProduto(id) {
+  await db.collection('produtos').doc(id).update({ ativo: false });
+  toast('Produto inativado', 'ok');
+  loadProdutos();
+}
+function previewImport(input, tipo) {
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      importData = rows;
+      importType = tipo;
+      // Preview table
+      const preview = rows.slice(0, 11);
+      const headers = preview[0] || [];
+      const tbody = preview.slice(1).map(r => `<tr>${headers.map((_,i) => `<td>${r[i] !== undefined ? r[i] : ''}</td>`).join('')}</tr>`).join('');
+      document.getElementById('import-preview-title').textContent = tipo === 'produtos' ? `Preview — Produtos (${rows.length - 1} itens)` : `Preview — Endereços (${rows.length - 1} itens)`;
+      document.getElementById('import-preview-table').innerHTML = `<table class="tbl"><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${tbody}</tbody></table>`;
+      document.getElementById('import-preview-wrap').style.display = 'block';
+    } catch (err) { toast('Erro ao ler arquivo', 'err'); }
+  };
+  reader.readAsBinaryString(f);
+}
+function cancelImport() {
+  importData = null; importType = null;
+  document.getElementById('import-preview-wrap').style.display = 'none';
+  document.getElementById('imp-produtos-file').value = '';
+  document.getElementById('imp-enderecos-file').value = '';
+}
+async function confirmarImport() {
+  const fazId = document.getElementById('prod-fazenda-sel').value;
+  if (!fazId) { toast('Selecione a fazenda', 'err'); return; }
+  if (!importData) return;
+  const rows = importData;
+  const headers = rows[0].map(h => String(h).trim().toLowerCase().replace(/\s+/g, '_'));
+  const data = rows.slice(1).filter(r => r.some(c => c !== '' && c !== undefined));
+  const BATCH = 400;
+  let done = 0;
+  document.getElementById('import-progress-wrap').style.display = 'block';
+  document.getElementById('btn-confirmar-import').disabled = true;
+  const updateBar = () => {
+    const pct = Math.round(done / data.length * 100);
+    document.getElementById('import-bar-fill').style.width = pct + '%';
+    document.getElementById('import-bar-label').textContent = `Importando... ${done}/${data.length}`;
+  };
+  for (let i = 0; i < data.length; i += BATCH) {
+    const chunk = data.slice(i, i + BATCH);
+    const batch = db.batch();
+    for (const row of chunk) {
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = row[idx] !== undefined ? String(row[idx]).trim() : ''; });
+      if (importType === 'produtos') {
+        const cod = (obj.codigo_sap || obj.codigo || '').toUpperCase();
+        if (!cod) continue;
+        const ref = db.collection('produtos').doc(`${fazId}_${cod}`);
+        batch.set(ref, { codigo_sap: cod, descricao: obj.descricao || obj.desc || '', grupo: obj.grupo || '', unidade: obj.unidade || obj.un || '', fazenda_id: fazId, ativo: true, importado_em: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      } else {
+        const cod = (obj.codigo_sap || obj.codigo || '').toUpperCase();
+        const loc = (obj.localizacao || obj.endereco || obj.local || '').toUpperCase();
+        if (!cod || !loc) continue;
+        const ref = db.collection('enderecos').doc(`${fazId}_${cod}_${loc}`);
+        batch.set(ref, { codigo_sap: cod, localizacao: loc, fazenda_id: fazId, importado_em: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      }
+    }
+    await batch.commit();
+    done += chunk.length;
+    updateBar();
+  }
+  toast(`${done} registros importados`, 'ok');
+  cancelImport();
+  document.getElementById('btn-confirmar-import').disabled = false;
+  document.getElementById('import-progress-wrap').style.display = 'none';
+  loadProdutos();
+}
+
+// =========================================================
+//  RESUMO
+// =========================================================
+async function loadResumo() {
+  const sessId = document.getElementById('resumo-sessao-sel').value;
+  const el = document.getElementById('resumo-body');
+  document.getElementById('resumo-stats').style.display = 'none';
+  document.getElementById('btn-export-resumo').style.display = 'none';
+  if (!sessId) { el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><p>Selecione uma sessão</p></div>'; return; }
+  const sess = allSessoes.find(s => s.id === sessId);
+  if (!sess) return;
+  const lista = sess.lista_itens || [];
+  const snap = await db.collection('contagens').where('sessao_id', '==', sessId).get();
+  const contagens = snap.docs.map(d => d.data());
+  // Agrupa por codigo_sap + localizacao + rodada
+  const map = {};
+  for (const c of contagens) {
+    const k = c.codigo_sap + '|' + c.localizacao;
+    if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, grupo: c.grupo, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
+    map[k].rodadas[c.rodada] = { qty: c.quantidade, usuario: c.usuario_nome };
+  }
+  const items = Object.values(map);
+  const totalRodadas = sess.total_rodadas;
+  let ok = 0, div = 0;
+  for (const it of items) {
+    const qtds = Object.values(it.rodadas).map(r => r.qty);
+    if (qtds.length === totalRodadas) {
+      it.status = qtds.every(q => q === qtds[0]) ? 'OK' : 'DIVERGENTE';
+      if (it.status === 'OK') ok++; else div++;
+    } else {
+      it.status = 'INCOMPLETO';
+    }
+  }
+  document.getElementById('res-end').textContent = lista.length;
+  document.getElementById('res-cont').textContent = items.length;
+  document.getElementById('res-ok').textContent = ok;
+  document.getElementById('res-div').textContent = div;
+  document.getElementById('resumo-stats').style.display = 'grid';
+  document.getElementById('btn-export-resumo').style.display = 'flex';
+  if (!items.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><p>Nenhuma contagem ainda</p></div>'; return; }
+  el.innerHTML = items.map(it => {
+    const rodCols = Array.from({ length: totalRodadas }, (_, i) => {
+      const r = it.rodadas[i + 1];
+      return r ? `<span style="font-family:var(--mono);font-size:12px;color:var(--accent)">${r.qty}</span><span style="font-size:10px;color:var(--text3)"> (${r.usuario})</span>` : `<span style="color:var(--text3);font-size:12px">—</span>`;
+    }).join(' / ');
+    const color = it.status === 'OK' ? 'var(--accent)' : it.status === 'DIVERGENTE' ? 'var(--danger)' : 'var(--warn)';
+    return `<div class="list-item" style="cursor:default">
+      <div class="list-item-body">
+        <div class="list-item-title">${it.codigo_sap} · ${it.localizacao}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${it.descricao || ''}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${rodCols}</div>
+      </div>
+      <div><span class="badge" style="background:rgba(0,0,0,.2);color:${color};border:1px solid ${color}">${it.status}</span></div>
+    </div>`;
+  }).join('');
+}
+async function exportResumoCSV() {
+  const sessId = document.getElementById('resumo-sessao-sel').value;
+  if (!sessId) return;
+  const sess = allSessoes.find(s => s.id === sessId);
+  const snap = await db.collection('contagens').where('sessao_id', '==', sessId).get();
+  const contagens = snap.docs.map(d => d.data());
+  const map = {};
+  for (const c of contagens) {
+    const k = c.codigo_sap + '|' + c.localizacao;
+    if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, grupo: c.grupo, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
+    map[k].rodadas[c.rodada] = { qty: c.quantidade, usuario: c.usuario_nome };
+  }
+  const total = sess.total_rodadas;
+  const headers = ['Fazenda', 'Sessão', 'Código SAP', 'Descrição', 'Grupo', 'Unidade', 'Localização',
+    ...Array.from({ length: total }, (_, i) => [`Qtd ${i + 1}ª`, `Contador ${i + 1}ª`]).flat(),
+    'Status', 'Divergente'];
+  const rows = Object.values(map).map(it => {
+    const qtds = Array.from({ length: total }, (_, i) => {
+      const r = it.rodadas[i + 1];
+      return r ? [r.qty, r.usuario] : ['', ''];
+    }).flat();
+    const allQtds = Object.values(it.rodadas).map(r => r.qty);
+    const status = allQtds.length === total ? (allQtds.every(q => q === allQtds[0]) ? 'OK' : 'DIVERGENTE') : 'INCOMPLETO';
+    return [sess.fazenda_nome || '', sess.descricao, it.codigo_sap, it.descricao, it.grupo, it.unidade, it.localizacao, ...qtds, status, status === 'DIVERGENTE' ? 'SIM' : 'NÃO'];
+  });
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `resumo_${sess.descricao}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+}
+
+// =========================================================
+//  DIVERGÊNCIAS
+// =========================================================
+async function loadDiverg() {
+  const sessId = document.getElementById('diverg-sessao-sel').value;
+  const el = document.getElementById('diverg-body');
+  document.getElementById('btn-export-div').style.display = 'none';
+  if (!sessId) { el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhuma divergência</p></div>'; return; }
+  const sess = allSessoes.find(s => s.id === sessId);
+  const snap = await db.collection('contagens').where('sessao_id', '==', sessId).get();
+  const contagens = snap.docs.map(d => d.data());
+  const map = {};
+  for (const c of contagens) {
+    const k = c.codigo_sap + '|' + c.localizacao;
+    if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
+    map[k].rodadas[c.rodada] = c.quantidade;
+  }
+  const total = sess.total_rodadas;
+  const divs = Object.values(map).filter(it => {
+    const qtds = Object.values(it.rodadas);
+    return qtds.length === total && !qtds.every(q => q === qtds[0]);
+  });
+  if (!divs.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhuma divergência encontrada</p></div>'; return; }
+  document.getElementById('btn-export-div').style.display = 'flex';
+  el.innerHTML = divs.map(it => {
+    const qtds = Object.entries(it.rodadas).map(([r, q]) => `R${r}: <strong style="color:var(--warn)">${q}</strong>`).join(' · ');
+    return `<div class="list-item" style="cursor:default;border-color:rgba(224,82,82,.3)">
+      <div class="list-item-icon" style="background:rgba(224,82,82,.1)">⚠️</div>
+      <div class="list-item-body">
+        <div class="list-item-title">${it.codigo_sap} · ${it.localizacao}</div>
+        <div style="font-size:12px;color:var(--text2)">${it.descricao || ''}</div>
+        <div style="font-size:12px;margin-top:4px">${qtds}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function exportDivergCSV() {
+  const sessId = document.getElementById('diverg-sessao-sel').value;
+  if (!sessId) return;
+  const sess = allSessoes.find(s => s.id === sessId);
+  const snap = await db.collection('contagens').where('sessao_id', '==', sessId).get();
+  const contagens = snap.docs.map(d => d.data());
+  const map = {};
+  for (const c of contagens) {
+    const k = c.codigo_sap + '|' + c.localizacao;
+    if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
+    map[k].rodadas[c.rodada] = c.quantidade;
+  }
+  const total = sess.total_rodadas;
+  const divs = Object.values(map).filter(it => {
+    const qtds = Object.values(it.rodadas);
+    return qtds.length === total && !qtds.every(q => q === qtds[0]);
+  });
+  const headers = ['Código SAP', 'Descrição', 'Unidade', 'Localização', ...Array.from({ length: total }, (_, i) => `Qtd Rodada ${i + 1}`)];
+  const rows = divs.map(it => [it.codigo_sap, it.descricao, it.unidade, it.localizacao, ...Array.from({ length: total }, (_, i) => it.rodadas[i + 1] ?? '')]);
+  const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `divergencias_${sess.descricao}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+}
+
+// =========================================================
+//  MÓDULO SALDO — CORE
+// =========================================================
+// Fonte do saldo: busca contagens finalizadas (última rodada completa)
+// e também saldo manual importado (coleção saldos, se existir).
+// Retorna array de { localizacao, quantidade, fonte, rodada, data }
+async function getSaldoProduto(codigoSap, fazendaId) {
+  const saldoMap = {}; // localizacao -> { qty, fonte, data }
+
+  // 1. Saldo importado do SAP (coleção `saldos`)
+  try {
+    const _sSnapAll = await db.collection('saldos').get();
+    const sSnap = { docs: _sSnapAll.docs.filter(d => d.data().codigo_sap===codigoSap && d.data().fazenda_id===fazendaId) };
+    for (const sDoc of sSnap.docs) {
+      const s = sDoc.data();
+      const loc = (s.localizacao || 'ESTOQUE GERAL').toUpperCase();
+      saldoMap[loc] = {
+        localizacao: loc,
+        quantidade: s.quantidade,
+        fonte: s.fonte === 'importacao_sap' ? '📥 SAP B1 (importado)' : '✏️ Manual',
+        data: s.atualizado_em,
+        prioridade: 2
+      };
+    }
+  } catch (e) { /* coleção pode não existir ainda */ }
+
+  // 2. Contagens finalizadas (sessões fechadas ou aguardando revisão)
+  // Sem orderBy para evitar índice composto — ordenamos em JS
+  const _sessAll = await db.collection('sessoes').get();
+  const sessSnap = { docs: _sessAll.docs.filter(d => {
+    const sd = d.data();
+    return sd.fazenda_id === fazendaId && ['aguardando_revisao','fechada'].includes(sd.status);
+  })};
+  // Ordena por criado_em desc no cliente
+  const sessDocs = sessSnap.docs.slice().sort((a, b) => {
+    const ta = a.data().criado_em ? a.data().criado_em.toMillis() : 0;
+    const tb = b.data().criado_em ? b.data().criado_em.toMillis() : 0;
+    return tb - ta;
+  });
+  for (const sessDoc of sessDocs) {
+    const sess = sessDoc.data();
+    const lista = sess.lista_itens || [];
+    if (!lista.includes(codigoSap)) continue;
+    const rodada = sess.total_rodadas;
+    const _cSnapAll = await db.collection('contagens')
+      .where('sessao_id', '==', sessDoc.id)
+      .get();
+    const cSnap = { docs: _cSnapAll.docs.filter(d => d.data().codigo_sap===codigoSap && d.data().rodada===rodada) };
+    for (const cDoc of cSnap.docs) {
+      const c = cDoc.data();
+      const loc = c.localizacao.toUpperCase();
+      const existing = saldoMap[loc];
+      // Usa contagem se: não há saldo importado, ou contagem é mais recente
+      const contTs = c.criado_em ? c.criado_em.toMillis() : 0;
+      const impTs = existing && existing.data ? existing.data.toMillis() : 0;
+      if (!existing || contTs > impTs) {
+        saldoMap[loc] = {
+          localizacao: loc,
+          quantidade: c.quantidade,
+          fonte: `🔢 Inventário: ${sess.descricao}`,
+          data: c.criado_em,
+          prioridade: 1
+        };
+      }
+    }
+    if (Object.keys(saldoMap).length > 0) break; // usa a sessão mais recente
+  }
+
+  return Object.values(saldoMap).sort((a, b) => a.localizacao.localeCompare(b.localizacao));
+}
+async function getProdutoInfo(codigoSap, fazendaId) {
+  const _snapPI = await db.collection('produtos')
+    .where('codigo_sap', '==', codigoSap)
+    .get();
+  const _docPI = _snapPI.docs.find(d => d.data().fazenda_id===fazendaId);
+  if (!_docPI) return null;
+  return _docPI.data();
+}
+async function searchProdutos(query, fazendaId, limit = 8) {
+  // Busca por código exato primeiro, depois por descrição (prefix)
+  const q = query.trim().toUpperCase();
+  const results = [];
+  // Por código
+  // Busca tudo e filtra em JS (zero índices compostos)
+  const _allProds = await db.collection('produtos').get();
+  _allProds.docs.forEach(d => {
+    const p = d.data();
+    if (p.fazenda_id !== fazendaId || p.ativo === false) return;
+    if ((p.codigo_sap||'').includes(q) || (p.descricao||'').toUpperCase().includes(q)) {
+      results.push({ id: d.id, ...p });
+    }
+  });
+  return results.slice(0, limit);
+}
+function renderSaldoCard(prod, saldos, containerId) {
+  const el = document.getElementById(containerId);
+  const total = saldos.reduce((s, l) => s + (Number(l.quantidade) || 0), 0);
+  const temSap = saldos.some(l => l.fonte && l.fonte.includes('SAP'));
+  const temInv = saldos.some(l => l.fonte && l.fonte.includes('Inventário'));
+  const fonteLabel = temSap && temInv ? '📥 SAP + 🔢 Inventário'
+    : temSap ? '📥 SAP B1'
+    : temInv ? '🔢 Inventário'
+    : '—';
+  const locsHtml = saldos.length > 0
+    ? saldos.map(l => `
+        <div class="saldo-loc-row">
+          <div>
+            <div class="saldo-loc-name">📍 ${l.localizacao}</div>
+            <div class="saldo-loc-source">${l.fonte || ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="saldo-loc-qty">${l.quantidade}</div>
+            <div style="font-size:10px;color:var(--text3)">${prod.unidade || ''}</div>
+          </div>
+        </div>`).join('')
+    : `<div style="padding:14px 16px;font-size:13px;color:var(--text3)">
+        Sem saldo registrado. Feche uma sessão de inventário ou importe o saldo do SAP B1.
+       </div>`;
+  el.innerHTML = `
+    <div class="saldo-result-card">
+      <div class="saldo-result-header">
+        <div class="saldo-cod">${prod.codigo_sap}</div>
+        <div class="saldo-desc">${prod.descricao}</div>
+        <div class="saldo-meta">
+          ${prod.grupo ? `<span>Grupo: ${prod.grupo}</span>` : ''}
+          ${prod.unidade ? `<span>Un: <strong style="color:var(--accent)">${prod.unidade}</strong></span>` : ''}
+          <span style="color:var(--text3)">${fonteLabel}</span>
+        </div>
+      </div>
+      <div class="saldo-total-row">
+        <div class="saldo-total-label"><span class="live-dot"></span>Saldo total</div>
+        <div>
+          <span class="saldo-total-val">${total}</span>
+          <span class="saldo-total-unit">${prod.unidade || ''}</span>
+        </div>
+      </div>
+      ${saldos.length > 1 ? `<div class="saldo-locs-title">DETALHE POR LOCALIZAÇÃO (${saldos.length})</div>` : ''}
+      ${locsHtml}
+    </div>`;
+}
+
+// =========================================================
+//  TELA SALDO DEDICADA (para almoxarife e supervisor tela cheia)
+// =========================================================
+let saldoOrigemPerfil = 'almoxarife';
+function showSaldoConsulta(perfil) {
+  saldoOrigemPerfil = perfil;
+  // Determina fazendaId
+  if (perfil === 'almoxarife') {
+    saldoFazendaId = currentUser.fazenda_id;
+    document.getElementById('saldo-fazenda-label').textContent = currentUser.fazenda_nome || '';
+    document.getElementById('saldo-fazenda-filter-wrap').style.display = 'none';
+  } else {
+    // supervisor: mostra filtro de fazenda
+    document.getElementById('saldo-fazenda-label').textContent = 'Supervisor';
+    document.getElementById('saldo-fazenda-filter-wrap').style.display = 'block';
+    populateSaldoFazendaFilter();
+    saldoFazendaId = null;
+  }
+  document.getElementById('saldo-back-btn').onclick = () => {
+    if (perfil === 'almoxarife') showScreen('screen-home');
+    else showScreen('screen-supervisor');
+  };
+  // Reset
+  document.getElementById('saldo-search-inp').value = '';
+  document.getElementById('saldo-results').innerHTML = '';
+  document.getElementById('saldo-suggestions').innerHTML = '';
+  document.getElementById('saldo-empty-state').style.display = 'block';
+  showScreen('screen-saldo');
+}
+function populateSaldoFazendaFilter() {
+  const sel = document.getElementById('saldo-fazenda-filter');
+  sel.innerHTML = '<option value="">Selecione a fazenda...</option>' + allFazendas.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+}
+function saldoChangeFazenda() {
+  saldoFazendaId = document.getElementById('saldo-fazenda-filter').value || null;
+  const faz = allFazendas.find(f => f.id === saldoFazendaId);
+  document.getElementById('saldo-fazenda-label').textContent = faz ? faz.nome : 'Supervisor';
+  document.getElementById('saldo-results').innerHTML = '';
+  document.getElementById('saldo-suggestions').innerHTML = '';
+  document.getElementById('saldo-empty-state').style.display = 'block';
+  document.getElementById('saldo-search-inp').value = '';
+}
+let saldoSearchTimeout = null;
+function saldoOnInput() {
+  const q = document.getElementById('saldo-search-inp').value.trim();
+  clearTimeout(saldoSearchTimeout);
+  document.getElementById('saldo-suggestions').innerHTML = '';
+  if (q.length < 2) return;
+  if (!saldoFazendaId) { toast('Selecione a fazenda', 'err'); return; }
+  saldoSearchTimeout = setTimeout(() => saldoSugestoes(q), 300);
+}
+async function saldoSugestoes(q) {
+  if (!saldoFazendaId) return;
+  const prods = await searchProdutos(q, saldoFazendaId, 6);
+  const el = document.getElementById('saldo-suggestions');
+  if (!prods.length) { el.innerHTML = ''; return; }
+  el.innerHTML = prods.map(p =>
+    `<div class="saldo-suggestion" onclick="saldoSelectProd('${p.codigo_sap}')">
+      <div class="saldo-suggestion-cod">${p.codigo_sap}</div>
+      <div class="saldo-suggestion-desc">${p.descricao}</div>
+    </div>`
+  ).join('');
+}
+async function saldoSelectProd(cod) {
+  document.getElementById('saldo-search-inp').value = cod;
+  document.getElementById('saldo-suggestions').innerHTML = '';
+  await saldoBuscarCod(cod);
+}
+async function saldoBuscar() {
+  const q = document.getElementById('saldo-search-inp').value.trim().toUpperCase();
+  if (!q) { toast('Digite o código ou descrição', 'err'); return; }
+  if (!saldoFazendaId) { toast('Selecione a fazenda', 'err'); return; }
+  document.getElementById('saldo-suggestions').innerHTML = '';
+  await saldoBuscarCod(q);
+}
+async function saldoBuscarCod(cod) {
+  if (!saldoFazendaId) return;
+  document.getElementById('saldo-empty-state').style.display = 'none';
+  document.getElementById('saldo-loading').style.display = 'flex';
+  document.getElementById('saldo-results').innerHTML = '';
+  try {
+    const prod = await getProdutoInfo(cod, saldoFazendaId);
+    if (!prod) {
+      document.getElementById('saldo-results').innerHTML = `<div class="saldo-empty"><div style="font-size:28px;margin-bottom:8px">🔍</div><div style="font-size:13px;color:var(--text2)">Produto <strong>${cod}</strong> não encontrado nesta fazenda.</div></div>`;
+      document.getElementById('saldo-loading').style.display = 'none';
+      return;
+    }
+    const saldos = await getSaldoProduto(cod, saldoFazendaId);
+    document.getElementById('saldo-loading').style.display = 'none';
+    renderSaldoCard(prod, saldos, 'saldo-results');
+  } catch (e) {
+    document.getElementById('saldo-loading').style.display = 'none';
+    document.getElementById('saldo-results').innerHTML = `<div class="saldo-empty" style="color:var(--danger)">${e.message}</div>`;
+  }
+}
+
+// =========================================================
+//  IMPORTAÇÃO DE SALDO INICIAL (SAP B1 via Excel)
+// =========================================================
+let importSaldoData = null;
+function previewImportSaldo(input) {
+  const fazId = document.getElementById('sup-saldo-fazenda-sel').value;
+  if (!fazId) { toast('Selecione a fazenda antes de importar', 'err'); input.value = ''; return; }
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      importSaldoData = rows;
+      const preview = rows.slice(0, 8);
+      const headers = preview[0] || [];
+      const tbody = preview.slice(1).map(r =>
+        `<tr>${headers.map((_,i) => `<td>${r[i] !== undefined ? r[i] : ''}</td>`).join('')}</tr>`
+      ).join('');
+      document.getElementById('saldo-import-preview-title').textContent =
+        `Preview — Saldo inicial (${rows.length - 1} itens)`;
+      document.getElementById('saldo-import-preview-table').innerHTML =
+        `<table class="tbl"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tbody}</tbody></table>`;
+      document.getElementById('saldo-import-preview-wrap').style.display = 'block';
+    } catch (err) { toast('Erro ao ler arquivo', 'err'); }
+  };
+  reader.readAsBinaryString(f);
+}
+function cancelImportSaldo() {
+  importSaldoData = null;
+  document.getElementById('saldo-import-preview-wrap').style.display = 'none';
+  document.getElementById('imp-saldo-file').value = '';
+}
+async function confirmarImportSaldo() {
+  const fazId = document.getElementById('sup-saldo-fazenda-sel').value;
+  if (!fazId || !importSaldoData) return;
+  const rows = importSaldoData;
+  // Normaliza headers: aceita variações comuns do SAP B1
+  const rawHeaders = rows[0].map(h => String(h).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove acentos
+    .replace(/\s+/g,'_')
+  );
+  // Mapeamento flexível de colunas
+  const colMap = {
+    codigo_sap: ['codigo_sap','codigo','cod_sap','item_code','itemcode','codigo_item','cod'],
+    localizacao: ['localizacao','local','endereco','bin','deposito','warehouse','loc'],
+    quantidade: ['quantidade','qtd','qty','saldo','estoque','quantity','amount']
+  };
+  const findCol = key => {
+    for (const alias of colMap[key]) {
+      const idx = rawHeaders.indexOf(alias);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+  const iCod = findCol('codigo_sap');
+  const iLoc = findCol('localizacao');
+  const iQty = findCol('quantidade');
+  if (iCod === -1) { toast('Coluna codigo_sap não encontrada', 'err'); return; }
+  if (iQty === -1) { toast('Coluna quantidade não encontrada', 'err'); return; }
+  const data = rows.slice(1).filter(r => r[iCod]);
+  if (!data.length) { toast('Nenhum dado encontrado', 'err'); return; }
+  const BATCH = 400;
+  let done = 0;
+  document.getElementById('saldo-import-progress-wrap').style.display = 'block';
+  document.getElementById('btn-confirmar-saldo').disabled = true;
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  for (let i = 0; i < data.length; i += BATCH) {
+    const chunk = data.slice(i, i + BATCH);
+    const batch = db.batch();
+    for (const row of chunk) {
+      const cod = String(row[iCod] || '').trim().toUpperCase();
+      const loc = iLoc !== -1 ? String(row[iLoc] || '').trim().toUpperCase() : 'ESTOQUE GERAL';
+      const qty = parseFloat(String(row[iQty] || '0').replace(',','.')) || 0;
+      if (!cod) continue;
+      const docId = `${fazId}_${cod}_${loc}`.replace(/[^a-zA-Z0-9_\-]/g,'_');
+      const ref = db.collection('saldos').doc(docId);
+      batch.set(ref, {
+        codigo_sap: cod,
+        localizacao: loc || 'ESTOQUE GERAL',
+        quantidade: qty,
+        fazenda_id: fazId,
+        fonte: 'importacao_sap',
+        atualizado_em: now
+      }, { merge: true });
+    }
+    await batch.commit();
+    done += chunk.length;
+    const pct = Math.round(done / data.length * 100);
+    document.getElementById('saldo-import-bar-fill').style.width = pct + '%';
+    document.getElementById('saldo-import-bar-label').textContent = `Importando... ${done}/${data.length}`;
+  }
+  toast(`✓ ${done} saldos importados`, 'ok');
+  cancelImportSaldo();
+  document.getElementById('btn-confirmar-saldo').disabled = false;
+  document.getElementById('saldo-import-progress-wrap').style.display = 'none';
+}
+
+// =========================================================
+//  SALDO INLINE NO PAINEL SUPERVISOR
+// =========================================================
+function initSupSaldo() {
+  document.getElementById('sup-saldo-results').innerHTML = '';
+  document.getElementById('sup-saldo-empty').style.display = 'block';
+}
+function supSaldoChangeFazenda() {
+  document.getElementById('sup-saldo-results').innerHTML = '';
+  document.getElementById('sup-saldo-empty').style.display = 'block';
+  document.getElementById('sup-saldo-inp').value = '';
+  document.getElementById('sup-saldo-suggestions').innerHTML = '';
+}
+let supSaldoTimeout = null;
+function supSaldoOnInput() {
+  const q = document.getElementById('sup-saldo-inp').value.trim();
+  clearTimeout(supSaldoTimeout);
+  document.getElementById('sup-saldo-suggestions').innerHTML = '';
+  if (q.length < 2) return;
+  const fazId = document.getElementById('sup-saldo-fazenda-sel').value;
+  if (!fazId) { toast('Selecione a fazenda', 'err'); return; }
+  supSaldoTimeout = setTimeout(async () => {
+    const prods = await searchProdutos(q, fazId, 5);
+    const el = document.getElementById('sup-saldo-suggestions');
+    el.innerHTML = prods.map(p =>
+      `<div class="saldo-suggestion" onclick="supSaldoSelectProd('${p.codigo_sap}')">
+        <div class="saldo-suggestion-cod">${p.codigo_sap}</div>
+        <div class="saldo-suggestion-desc">${p.descricao}</div>
+      </div>`
+    ).join('');
+  }, 300);
+}
+async function supSaldoSelectProd(cod) {
+  document.getElementById('sup-saldo-inp').value = cod;
+  document.getElementById('sup-saldo-suggestions').innerHTML = '';
+  await supSaldoBuscarCod(cod);
+}
+async function supSaldoBuscar() {
+  const q = document.getElementById('sup-saldo-inp').value.trim().toUpperCase();
+  const fazId = document.getElementById('sup-saldo-fazenda-sel').value;
+  if (!q) { toast('Digite o código', 'err'); return; }
+  if (!fazId) { toast('Selecione a fazenda', 'err'); return; }
+  document.getElementById('sup-saldo-suggestions').innerHTML = '';
+  await supSaldoBuscarCod(q);
+}
+async function supSaldoBuscarCod(cod) {
+  const fazId = document.getElementById('sup-saldo-fazenda-sel').value;
+  if (!fazId) return;
+  document.getElementById('sup-saldo-empty').style.display = 'none';
+  document.getElementById('sup-saldo-loading').style.display = 'flex';
+  document.getElementById('sup-saldo-results').innerHTML = '';
+  try {
+    const prod = await getProdutoInfo(cod, fazId);
+    if (!prod) {
+      document.getElementById('sup-saldo-results').innerHTML = `<div class="saldo-empty"><div style="font-size:13px;color:var(--text2)">Produto <strong>${cod}</strong> não encontrado.</div></div>`;
+      document.getElementById('sup-saldo-loading').style.display = 'none';
+      return;
+    }
+    const saldos = await getSaldoProduto(cod, fazId);
+    document.getElementById('sup-saldo-loading').style.display = 'none';
+    renderSaldoCard(prod, saldos, 'sup-saldo-results');
+  } catch (e) {
+    document.getElementById('sup-saldo-loading').style.display = 'none';
+  }
+}
+
+// =========================================================
+//  INIT
+// =========================================================
+window.addEventListener('load', async () => {
+  // Tenta restaurar sessão
+  try {
+    const cu = localStorage.getItem('cu');
+    if (cu) {
+      currentUser = JSON.parse(cu);
+      // Verifica se ainda está ativo
+      const doc = await db.collection('usuarios').doc(currentUser.id).get();
+      if (doc.exists && doc.data().ativo) {
+        currentUser = { id: doc.id, ...doc.data() };
+        localStorage.setItem('cu', JSON.stringify(currentUser));
+        document.getElementById('loading-screen').style.display = 'none';
+        afterLogin();
+        return;
+      }
+    }
+  } catch (e) { /* ignora */ }
+  document.getElementById('loading-screen').style.display = 'none';
+  showScreen('screen-login');
+});
+</script>
+</body>
+</html>
