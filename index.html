@@ -1508,6 +1508,11 @@ function selecionarPendente(cod) {
   buscarProdutoContagem();
 }
 
+// Helper: extrai código SAP de um item da lista (string legada OU objeto novo)
+function listaGetCod(item) { return typeof item === 'object' && item !== null ? (item.cod || '') : String(item || ''); }
+function listaGetDesc(item) { return typeof item === 'object' && item !== null ? (item.desc || '') : ''; }
+function listaGetLoc(item) { return typeof item === 'object' && item !== null ? (item.loc || '') : ''; }
+
 async function loadPendentes() {
   console.log('[Pendentes] currentSessao:', currentSessao ? currentSessao.id : 'NULL');
   if (!currentSessao) {
@@ -1515,9 +1520,7 @@ async function loadPendentes() {
     return;
   }
   const lista = currentSessao.lista_itens || [];
-  console.log('[Pendentes] lista_itens:', lista.length, 'itens', lista.slice(0,3));
   if (lista.length === 0) {
-    document.getElementById('pendentes-wrap').style.display = 'none';
     document.getElementById('pendentes-list').innerHTML = '<div class="pendentes-empty">Nenhum item na lista desta sessão.<br><small style="color:var(--text3)">Verifique se a planilha foi importada ao criar a sessão.</small></div>';
     document.getElementById('pendentes-wrap').style.display = 'block';
     return;
@@ -1526,7 +1529,6 @@ async function loadPendentes() {
   document.getElementById('pendentes-list').innerHTML = '<div class="pendentes-empty">Carregando...</div>';
   const rodada = currentSessao.rodada_atual || 1;
 
-  // Busca o que já foi contado nesta rodada por este usuário
   const snap = await db.collection('contagens')
     .where('sessao_id', '==', currentSessao.id)
     .get();
@@ -1536,33 +1538,34 @@ async function loadPendentes() {
       .map(d => d.data().codigo_sap)
   );
 
-  // Busca descrições dos produtos para exibir (em lote)
+  // Busca descrições dos produtos para exibir
   const prodSnap = await db.collection('produtos')
     .where('fazenda_id', '==', currentUser.fazenda_id)
     .get();
   const prodMap = {};
   prodSnap.docs.forEach(d => { prodMap[d.data().codigo_sap] = d.data(); });
 
-  // Separa pendentes e contados
-  const pendentes = lista.filter(cod => !jaContados.has(cod));
-  const contados  = lista.filter(cod =>  jaContados.has(cod));
+  // Normaliza lista para sempre trabalhar com objetos
+  const listaObj = lista.map(item => ({
+    cod:  listaGetCod(item),
+    desc: listaGetDesc(item),
+    loc:  listaGetLoc(item),
+  })).filter(i => i.cod);
+
+  const pendentes = listaObj.filter(i => !jaContados.has(i.cod));
+  const contados  = listaObj.filter(i =>  jaContados.has(i.cod));
 
   document.getElementById('pendentes-count-label').textContent =
-    `${pendentes.length} de ${lista.length}`;
+    `${pendentes.length} de ${listaObj.length}`;
 
   const el = document.getElementById('pendentes-list');
-  if (lista.length === 0) {
-    el.innerHTML = '<div class="pendentes-empty">Nenhum item na lista</div>';
-    return;
-  }
 
-  const renderItem = (cod, feito) => {
-    const prod = prodMap[cod];
-    const desc = prod ? prod.descricao : '';
-    // CONTAGEM CEGA: item contado mostra apenas ✓, sem revelar quantidade
-    return `<div class="pendente-item${feito ? ' contado' : ''}" onclick="${feito ? '' : `selecionarPendente('${cod}')`}">
+  const renderItem = (item, feito) => {
+    const prod = prodMap[item.cod];
+    const desc = prod ? prod.descricao : (item.desc || '');
+    return `<div class="pendente-item${feito ? ' contado' : ''}" onclick="${feito ? '' : `selecionarPendente('${item.cod}')`}">
       <div style="min-width:0;flex:1">
-        <div class="pendente-cod">${cod}</div>
+        <div class="pendente-cod">${item.cod}</div>
         ${desc ? `<div class="pendente-desc">${desc}</div>` : ''}
       </div>
       ${feito
@@ -1572,10 +1575,10 @@ async function loadPendentes() {
   };
 
   el.innerHTML =
-    pendentes.map(cod => renderItem(cod, false)).join('') +
+    pendentes.map(i => renderItem(i, false)).join('') +
     (contados.length > 0
       ? `<div style="padding:6px 14px;font-family:var(--mono);font-size:10px;color:var(--text3);background:var(--bg3);text-transform:uppercase;letter-spacing:.06em">Já contados (${contados.length})</div>` +
-        contados.map(cod => renderItem(cod, true)).join('')
+        contados.map(i => renderItem(i, true)).join('')
       : '');
 }
 
@@ -1583,8 +1586,9 @@ async function buscarProdutoContagem() {
   const cod = document.getElementById('count-cod').value.trim().toUpperCase();
   if (!cod) { toast('Digite o código SAP', 'err'); return; }
   // Verifica se está na lista
-  if (currentSessao && currentSessao.lista_itens && !currentSessao.lista_itens.includes(cod)) {
-    toast('Produto não está na lista desta sessão', 'err'); return;
+  if (currentSessao && currentSessao.lista_itens && currentSessao.lista_itens.length > 0) {
+    const naLista = currentSessao.lista_itens.some(item => listaGetCod(item) === cod);
+    if (!naLista) { toast('Produto não está na lista desta sessão', 'err'); return; }
   }
   try {
     const _snapProd = await db.collection('produtos')
@@ -2341,8 +2345,9 @@ function onListaFileEdit(input) {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      listaItensEdit = extrairCodigosDaLista(rows);
-      document.getElementById('drop-lista-edit-txt').textContent = `✓ ${listaItensEdit.length} itens`;
+      listaItensEdit = extrairListaCompleta(rows);
+      const temSaldo = listaItensEdit.some(r => r.saldo_sap !== null);
+      document.getElementById('drop-lista-edit-txt').textContent = `✓ ${listaItensEdit.length} itens${temSaldo ? ' · com Saldo SAP' : ''}`;
       toast(`${listaItensEdit.length} itens`, 'ok');
     } catch (err) { toast('Erro ao ler planilha', 'err'); }
   };
@@ -3065,7 +3070,7 @@ async function getSaldoProduto(codigoSap, fazendaId) {
   for (const sessDoc of sessDocs) {
     const sess = sessDoc.data();
     const lista = sess.lista_itens || [];
-    if (!lista.includes(codigoSap)) continue;
+    if (!lista.some(item => listaGetCod(item) === codigoSap)) continue;
     const rodada = sess.total_rodadas;
     const _cSnapAll = await db.collection('contagens')
       .where('sessao_id', '==', sessDoc.id)
