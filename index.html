@@ -1017,7 +1017,7 @@ select.inp{cursor:pointer}
       <div id="qrr-nome-preview" style="font-family:var(--mono);font-size:13px;color:var(--accent);padding:8px;background:rgba(0,212,170,.06);border-radius:6px;border:1px solid rgba(0,212,170,.2)"></div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-secondary" onclick="closeModal('modal-sessao-avulsa');showScreen('screen-home')">CANCELAR</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-sessao-avulsa');isAdminPerfil(currentUser&&currentUser.perfil)?showScreen('screen-supervisor'):showScreen('screen-home')">CANCELAR</button>
       <button class="btn btn-primary" onclick="qrrIniciarSessao()">▶ INICIAR</button>
     </div>
   </div>
