@@ -396,7 +396,9 @@ select.inp{cursor:pointer}
     </div>
     <button class="btn btn-primary" onclick="iniciarContagem()" id="btn-iniciar-contagem">📋 INICIAR CONTAGEM</button>
     <div style="height:12px"></div>
-    <button class="btn btn-info" onclick="nfAbrirTela()">📄 RECEBER NOTA FISCAL</button>
+    <button class="btn btn-info" onclick="nfAbrirTela()" id="btn-receber-nf-home">📄 RECEBER NOTA FISCAL</button>
+    <div style="height:12px"></div>
+    <button class="btn btn-secondary" onclick="abrirEtiquetasHome()" id="btn-etiquetas-home" style="display:none">🏷️ GERAR ETIQUETAS</button>
     <div style="height:12px"></div>
     <div id="offline-queue-badge" class="sync-badge" style="display:none;margin-top:10px;cursor:pointer" onclick="syncOfflineQueue()"></div>
     <div style="height:20px"></div>
@@ -1374,6 +1376,13 @@ async function initAlmoxarife() {
   permAplicarUI();
   loadSessaoAtiva();
 }
+
+function abrirEtiquetasHome() {
+  // Leva almoxarife para o painel supervisor na aba etiquetas
+  if (!allFazendas.length) loadFazendas();
+  showScreen('screen-supervisor');
+  supTab('etiquetas');
+}
 async function loadSessaoAtiva() {
   if (!currentUser.fazenda_id) return;
   const _rawSessoes = await db.collection('sessoes')
@@ -1985,13 +1994,23 @@ async function loadSessoesSuper(force = false) {
     return;
   }
   const verTodas = temPermissao('todas_filiais') || (currentUser && (currentUser.perfil === 'coordenador' || currentUser.perfil === 'supervisor'));
-  let query = db.collection('sessoes').orderBy('criado_em', 'desc');
-  if (!verTodas && currentUser.fazenda_id) {
-    query = db.collection('sessoes').where('fazenda_id', '==', currentUser.fazenda_id).orderBy('criado_em', 'desc');
-  }
-  const snap = await query.get();
-  allSessoes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  _cacheSet('sessoes', allSessoes);
+  try {
+    let snap;
+    if (!verTodas && currentUser.fazenda_id) {
+      try {
+        // Query com índice composto (fazenda_id + criado_em)
+        snap = await db.collection('sessoes').where('fazenda_id', '==', currentUser.fazenda_id).orderBy('criado_em', 'desc').get();
+      } catch(indexErr) {
+        // Índice ainda não criado — busca tudo e filtra em memória
+        snap = await db.collection('sessoes').orderBy('criado_em', 'desc').get();
+        snap = { docs: snap.docs.filter(d => d.data().fazenda_id === currentUser.fazenda_id) };
+      }
+    } else {
+      snap = await db.collection('sessoes').orderBy('criado_em', 'desc').get();
+    }
+    allSessoes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cacheSet('sessoes', allSessoes);
+  } catch(e) { console.error('loadSessoesSuper:', e); allSessoes = []; }
   renderSessoes();
 }
 function renderSessoes() {
@@ -2054,11 +2073,17 @@ async function populateSessaoSelects() {
     if (_cacheValid('avulsas')) {
       avulsas = _cache.avulsas.data;
     } else {
-      let qAvul = db.collection('sessoes_avulsas').orderBy('criado_em','desc').limit(30);
+      let snap;
       if (!verTodas && currentUser.fazenda_id) {
-        qAvul = db.collection('sessoes_avulsas').where('fazenda_id','==',currentUser.fazenda_id).orderBy('criado_em','desc').limit(30);
+        try {
+          snap = await db.collection('sessoes_avulsas').where('fazenda_id','==',currentUser.fazenda_id).orderBy('criado_em','desc').limit(30).get();
+        } catch(indexErr) {
+          const snapAll = await db.collection('sessoes_avulsas').orderBy('criado_em','desc').limit(30).get();
+          snap = { docs: snapAll.docs.filter(d => d.data().fazenda_id === currentUser.fazenda_id) };
+        }
+      } else {
+        snap = await db.collection('sessoes_avulsas').orderBy('criado_em','desc').limit(30).get();
       }
-      const snap = await qAvul.get();
       avulsas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       _cacheSet('avulsas', avulsas);
     }
@@ -4682,6 +4707,13 @@ function permAplicarUI() {
   // Botão NF na home do almoxarife
   const btnNFHome = document.getElementById('btn-receber-nf-home');
   if (btnNFHome) btnNFHome.style.display = temPermissao('receber_nf') ? '' : 'none';
+
+  // Botão Etiquetas na home do almoxarife (só aparece se não for admin — admin usa a aba)
+  const btnEtiqHome = document.getElementById('btn-etiquetas-home');
+  if (btnEtiqHome) {
+    const isAdmin = currentUser.perfil === 'coordenador' || currentUser.perfil === 'supervisor' || currentUser.perfil === 'lider';
+    btnEtiqHome.style.display = (!isAdmin && temPermissao('gerar_etiquetas')) ? '' : 'none';
+  }
 
   // Saldo
   document.querySelectorAll('[data-perm="ver_saldo"]').forEach(el => {
