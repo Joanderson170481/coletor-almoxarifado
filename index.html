@@ -1377,11 +1377,20 @@ async function initAlmoxarife() {
   loadSessaoAtiva();
 }
 
-function abrirEtiquetasHome() {
-  // Leva almoxarife para o painel supervisor na aba etiquetas
-  if (!allFazendas.length) loadFazendas();
+async function abrirEtiquetasHome() {
+  // Se supervisor já inicializado, vai direto
+  if (allFazendas.length && allSessoes !== undefined) {
+    showScreen('screen-supervisor');
+    supTab('etiquetas');
+    permAplicarUI();
+    return;
+  }
+  // Primeira vez — inicializa dados mínimos
+  if (!allFazendas.length) await loadFazendas();
+  if (!allUsuarios.length) await loadAllUsuarios();
   showScreen('screen-supervisor');
   supTab('etiquetas');
+  permAplicarUI();
 }
 async function loadSessaoAtiva() {
   if (!currentUser.fazenda_id) return;
@@ -4679,19 +4688,35 @@ function temPermissao(key) {
 function permAplicarUI() {
   if (!currentUser) return;
   const isCoordenador = currentUser.perfil === 'coordenador' || currentUser.perfil === 'supervisor';
+  const isAlmoxarife = currentUser.perfil === 'almoxarife';
 
-  // Reexibe todas as abas antes de aplicar regras (evita acúmulo de estados anteriores)
+  // Reexibe todas as abas antes de aplicar regras
   document.querySelectorAll('.tab').forEach(t => t.style.display = '');
 
-  // Abas exclusivas do coordenador — oculta para todos os outros
+  // Abas exclusivas do coordenador
   const tabUsr = document.getElementById('tab-usuarios-btn');
   if (tabUsr) tabUsr.style.display = isCoordenador ? '' : 'none';
   document.querySelectorAll('.tab').forEach(t => {
     if (t.textContent.trim() === 'FAZENDAS') t.style.display = isCoordenador ? '' : 'none';
   });
 
-  if (!isCoordenador) {
-    // Aplica cada permissão individualmente
+  // Almoxarife no supervisor: só vê ETIQUETAS (e saldo se tiver permissão)
+  if (isAlmoxarife) {
+    const tabsAlmoxarife = [
+      { sel: '[onclick*="sessoes"]',  show: false },
+      { sel: '[onclick*="produtos"]', show: false },
+      { sel: '[onclick*="saldo"]',    show: temPermissao('ver_saldo') },
+      { sel: '[onclick*="nf"]',       show: false },
+      { sel: '[onclick*="resumo"]',   show: false },
+      { sel: '[onclick*="diverg"]',   show: false },
+    ];
+    tabsAlmoxarife.forEach(({ sel, show }) => {
+      document.querySelectorAll(`.tab${sel}`).forEach(el => el.style.display = show ? '' : 'none');
+    });
+    const tabEtiq = document.getElementById('tab-etiquetas-btn');
+    if (tabEtiq) tabEtiq.style.display = temPermissao('gerar_etiquetas') ? '' : 'none';
+  } else if (!isCoordenador) {
+    // Líder: aplica permissões individuais
     const rules = [
       { id: 'tab-resumo-btn',    key: 'ver_resumo'       },
       { id: 'tab-diverg-btn',    key: 'ver_divergencias'  },
@@ -4708,12 +4733,9 @@ function permAplicarUI() {
   const btnNFHome = document.getElementById('btn-receber-nf-home');
   if (btnNFHome) btnNFHome.style.display = temPermissao('receber_nf') ? '' : 'none';
 
-  // Botão Etiquetas na home do almoxarife (só aparece se não for admin — admin usa a aba)
+  // Botão Etiquetas na home do almoxarife
   const btnEtiqHome = document.getElementById('btn-etiquetas-home');
-  if (btnEtiqHome) {
-    const isAdmin = currentUser.perfil === 'coordenador' || currentUser.perfil === 'supervisor' || currentUser.perfil === 'lider';
-    btnEtiqHome.style.display = (!isAdmin && temPermissao('gerar_etiquetas')) ? '' : 'none';
-  }
+  if (btnEtiqHome) btnEtiqHome.style.display = (isAlmoxarife && temPermissao('gerar_etiquetas')) ? '' : 'none';
 
   // Saldo
   document.querySelectorAll('[data-perm="ver_saldo"]').forEach(el => {
