@@ -1282,8 +1282,14 @@ async function doLogin() {
   } catch (e) { toast('Erro: ' + e.message, 'err'); }
 }
 function doLogout() {
-  currentUser = null; currentSessao = null;
+  // Limpa estado do usuário
+  currentUser = null;
+  currentSessao = null;
   localStorage.removeItem('cu');
+  // Limpa todos os arrays globais para não vazar dados entre logins
+  allFazendas = [];
+  allUsuarios = [];
+  allSessoes  = [];
   showScreen('screen-login');
 }
 function afterLogin() {
@@ -1820,14 +1826,13 @@ async function initSupervisor() {
   const roleLabel = perfilLabel(currentUser.perfil);
   document.getElementById('sup-fazenda-nome').textContent = roleLabel;
   showScreen('screen-supervisor');
-  // Carrega permissões antes de renderizar UI
+  // Carrega tudo em sequência — ordem importa: fazendas e usuários antes de sessões e selects
   await permCarregar();
-  await loadFazendas();
-  await loadAllUsuarios();
-  loadSessoesSuper();
-  populateSessaoSelects();
+  await loadFazendas();       // allFazendas preenchido + populateFazendaSelects chamado
+  await loadAllUsuarios();    // allUsuarios preenchido
+  await loadSessoesSuper();   // allSessoes preenchido (filtra por fazenda_id se líder)
+  await populateSessaoSelects(); // usa allSessoes já filtrado
   iniciarListenerNotificacoes();
-  // Aplica visibilidade das abas e botões conforme cargo
   permIdsSetup();
   permAplicarUI();
 }
