@@ -542,6 +542,7 @@ select.inp{cursor:pointer}
 <!-- =================== SUPERVISOR =================== -->
 <div class="screen" id="screen-supervisor">
   <div class="topbar">
+    <div id="btn-voltar-home-sup" class="topbar-back" onclick="showScreen('screen-home')" style="display:none">←</div>
     <div class="topbar-title">🌿 FLORA <span style="opacity:.7;font-weight:400">· <span id="sup-fazenda-nome"></span></span></div>
     <div style="display:flex;gap:6px;align-items:center">
       <button id="btn-dashboard-sup" onclick="dashAbrir()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;font-family:var(--mono);font-weight:600;cursor:pointer;white-space:nowrap">📊 DASHBOARD</button>
@@ -593,11 +594,9 @@ select.inp{cursor:pointer}
       </select>
     </div>
     <div class="btn-row" style="margin-bottom:12px">
-      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-produtos-file').click()">📥 Importar Produtos</button>
-      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-enderecos-file').click()">📍 Importar Endereços</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('imp-produtos-file').click()">📥 Importar Planilha</button>
     </div>
     <input type="file" id="imp-produtos-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport(this,'produtos')">
-    <input type="file" id="imp-enderecos-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport(this,'enderecos')">
     <div id="import-preview-wrap" style="display:none">
       <div id="import-preview-title" class="card-title" style="margin-bottom:8px"></div>
       <div class="preview-wrap" id="import-preview-table"></div>
@@ -2257,6 +2256,10 @@ const COD_SAP_ALIASES = [
   'codigo_item','item','sap','numero','num','part_number','partnumber',
   'referencia','ref','material','mat','sku'
 ];
+const DESC_ALIASES    = ['descricao','desc','description','nome','name','produto','item_name','denominacao'];
+const LOC_ALIASES     = ['localizacao','loc','endereco','address','location','posicao','slot','bin','local'];
+const SALDO_ALIASES   = ['saldo','quantidade','qtd','qty','estoque','balance','stock','amount','saldo_sap','saldo_sistema'];
+
 function normHeader(h) {
   return String(h||'')
     .toLowerCase()
@@ -2273,35 +2276,44 @@ function pareceCodigoSAP(v) {
   if (/^\d{1,2}$/.test(s)) return false;
   return /^[A-Z0-9][A-Z0-9\-\.]{1,}$/.test(s);
 }
-function extrairCodigosDaLista(rows) {
+
+// Extrai lista completa com código, descrição, localização e saldo_sap
+function extrairListaCompleta(rows) {
   if (!rows || rows.length === 0) return [];
   const header = rows[0];
-  let colIdx = -1;
+  let iCod=-1, iDesc=-1, iLoc=-1, iSaldo=-1;
   if (Array.isArray(header)) {
-    colIdx = header.findIndex(h => {
-      const norm = normHeader(h);
-      return COD_SAP_ALIASES.includes(norm) || norm.startsWith('cod') || norm.includes('sap') || norm.includes('item');
+    header.forEach((h, i) => {
+      const n = normHeader(h);
+      if (iCod   === -1 && (COD_SAP_ALIASES.includes(n) || n.startsWith('cod') || n.includes('sap'))) iCod = i;
+      if (iDesc  === -1 && (DESC_ALIASES.includes(n) || n.includes('desc') || n.includes('nome'))) iDesc = i;
+      if (iLoc   === -1 && (LOC_ALIASES.includes(n) || n.includes('loc') || n.includes('ender'))) iLoc = i;
+      if (iSaldo === -1 && (SALDO_ALIASES.includes(n) || n.includes('saldo') || n.includes('qtd') || n.includes('quant'))) iSaldo = i;
     });
   }
-  let codigos = [];
-  if (colIdx !== -1) {
-    codigos = rows.slice(1)
-      .map(r => String(Array.isArray(r) ? (r[colIdx] != null ? r[colIdx] : '') : '').trim().toUpperCase())
-      .filter(v => pareceCodigoSAP(v));
-  } else {
-    // Sem coluna reconhecida — varre todos os valores buscando padrão de código SAP
-    const todosValores = rows.flat().map(v => String(v||'').trim().toUpperCase());
-    codigos = todosValores.filter(v => pareceCodigoSAP(v));
-    // Último recurso: primeira coluna inteira
-    if (codigos.length === 0) {
-      codigos = rows
-        .map(r => String(Array.isArray(r) ? (r[0] != null ? r[0] : '') : r || '').trim().toUpperCase())
-        .filter(v => v && v.length > 1);
-    }
+  const result = [];
+  for (const row of rows.slice(1)) {
+    if (!Array.isArray(row)) continue;
+    const cod = iCod !== -1 ? String(row[iCod]||'').trim().toUpperCase() : '';
+    if (!pareceCodigoSAP(cod)) continue;
+    const desc  = iDesc  !== -1 ? String(row[iDesc] ||'').trim() : '';
+    const loc   = iLoc   !== -1 ? String(row[iLoc]  ||'').trim().toUpperCase() : '';
+    const saldo = iSaldo !== -1 ? parseFloat(String(row[iSaldo]||'').replace(',','.')) || null : null;
+    result.push({ cod, desc, loc, saldo_sap: saldo });
   }
-  const resultado = [...new Set(codigos.filter(v => v.length > 0))];
-  console.log('[Lista] ' + resultado.length + ' codigos. Amostra:', resultado.slice(0,5));
-  return resultado;
+  const uniq = [];
+  const seen = new Set();
+  for (const r of result) {
+    const key = r.cod + '|' + r.loc;
+    if (!seen.has(key)) { seen.add(key); uniq.push(r); }
+  }
+  console.log('[Lista] ' + uniq.length + ' itens. Amostra:', uniq.slice(0,3));
+  return uniq;
+}
+
+// Compatibilidade — retorna só os códigos (usado por etiqInit e loadPendentes)
+function extrairCodigosDaLista(rows) {
+  return extrairListaCompleta(rows).map(r => r.cod);
 }
 function onListaFile(input) {
   const f = input.files[0];
@@ -2312,9 +2324,10 @@ function onListaFile(input) {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      listaItens = extrairCodigosDaLista(rows);
-      document.getElementById('drop-lista-txt').textContent = `✓ ${listaItens.length} itens carregados`;
-      toast(`${listaItens.length} itens na lista`, 'ok');
+      listaItens = extrairListaCompleta(rows);
+      const temSaldo = listaItens.some(r => r.saldo_sap !== null);
+      document.getElementById('drop-lista-txt').textContent = `✓ ${listaItens.length} itens${temSaldo ? ' · com Saldo SAP' : ''}`;
+      toast(`${listaItens.length} itens carregados${temSaldo ? ' (com saldo)' : ''}`, 'ok');
     } catch (err) { toast('Erro ao ler planilha', 'err'); }
   };
   reader.readAsBinaryString(f);
@@ -2344,9 +2357,10 @@ function onListaFileQrr(input) {
       const wb = XLSX.read(e.target.result, { type: 'binary' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      listaItensQrr = extrairCodigosDaLista(rows);
-      document.getElementById('drop-lista-qrr-txt').textContent = `✓ ${listaItensQrr.length} itens carregados`;
-      toast(`${listaItensQrr.length} itens na lista`, 'ok');
+      listaItensQrr = extrairListaCompleta(rows);
+      const temSaldo = listaItensQrr.some(r => r.saldo_sap !== null);
+      document.getElementById('drop-lista-qrr-txt').textContent = `✓ ${listaItensQrr.length} itens${temSaldo ? ' · com Saldo SAP' : ''}`;
+      toast(`${listaItensQrr.length} itens carregados`, 'ok');
     } catch (err) { toast('Erro ao ler planilha', 'err'); }
   };
   reader.readAsBinaryString(f);
@@ -2913,27 +2927,54 @@ async function loadDiverg() {
   const sess = allSessoes.find(s => s.id === sessId);
   const snap = await db.collection('contagens').where('sessao_id', '==', sessId).get();
   const contagens = snap.docs.map(d => d.data());
+
+  // Monta mapa de contagens por item
   const map = {};
   for (const c of contagens) {
     const k = c.codigo_sap + '|' + c.localizacao;
     if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
     map[k].rodadas[c.rodada] = c.quantidade;
   }
-  const total = sess.total_rodadas;
-  const divs = Object.values(map).filter(it => {
-    const qtds = Object.values(it.rodadas);
-    return qtds.length === total && !qtds.every(q => q === qtds[0]);
+
+  // Mapa de saldo SAP da planilha (lista_itens com objetos {cod, saldo_sap})
+  const saldoMap = {};
+  const listaItensArr = sess ? (sess.lista_itens || []) : [];
+  listaItensArr.forEach(item => {
+    if (item && typeof item === 'object' && item.cod) {
+      const key = item.cod + '|' + (item.loc || '');
+      saldoMap[key] = item.saldo_sap ?? null;
+      // também indexa só pelo código como fallback
+      if (saldoMap[item.cod] === undefined) saldoMap[item.cod] = item.saldo_sap ?? null;
+    }
   });
+  const temSaldoSAP = listaItensArr.some(i => i && typeof i === 'object' && i.saldo_sap !== null && i.saldo_sap !== undefined);
+
+  const total = sess ? sess.total_rodadas : 1;
+  // Inclui itens com divergência entre rodadas OU divergência vs saldo SAP
+  const todos = Object.values(map);
+  const divs = todos.filter(it => {
+    const qtds = Object.values(it.rodadas);
+    const divRodadas = qtds.length > 1 && !qtds.every(q => q === qtds[0]);
+    const saldo = saldoMap[it.codigo_sap + '|' + it.localizacao] ?? saldoMap[it.codigo_sap] ?? null;
+    const divSAP = saldo !== null && qtds.some(q => q !== saldo);
+    return divRodadas || divSAP;
+  });
+
   if (!divs.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><p>Nenhuma divergência encontrada</p></div>'; return; }
   document.getElementById('btn-export-div').style.display = 'flex';
+
   el.innerHTML = divs.map(it => {
-    const qtds = Object.entries(it.rodadas).map(([r, q]) => `R${r}: <strong style="color:var(--warn)">${q}</strong>`).join(' · ');
+    const saldo = saldoMap[it.codigo_sap + '|' + it.localizacao] ?? saldoMap[it.codigo_sap] ?? null;
+    const qtdsHtml = Object.entries(it.rodadas).map(([r, q]) => `R${r}: <strong style="color:var(--warn)">${q}</strong>`).join(' · ');
+    const saldoHtml = temSaldoSAP
+      ? `<span style="margin-left:8px;font-family:var(--mono);font-size:11px;color:var(--text3)">SAP: <strong style="color:${saldo !== null ? 'var(--info)' : 'var(--text3)'}">${saldo !== null ? saldo : '—'}</strong></span>`
+      : '';
     return `<div class="list-item" style="cursor:default;border-color:rgba(224,82,82,.3)">
       <div class="list-item-icon" style="background:rgba(224,82,82,.1)">⚠️</div>
       <div class="list-item-body">
         <div class="list-item-title">${it.codigo_sap} · ${it.localizacao}</div>
         <div style="font-size:12px;color:var(--text2)">${it.descricao || ''}</div>
-        <div style="font-size:12px;margin-top:4px">${qtds}</div>
+        <div style="font-size:12px;margin-top:4px">${qtdsHtml}${saldoHtml}</div>
       </div>
     </div>`;
   }).join('');
@@ -2950,13 +2991,30 @@ async function exportDivergCSV() {
     if (!map[k]) map[k] = { codigo_sap: c.codigo_sap, descricao: c.descricao, unidade: c.unidade, localizacao: c.localizacao, rodadas: {} };
     map[k].rodadas[c.rodada] = c.quantidade;
   }
+  // Saldo SAP
+  const saldoMap = {};
+  (sess.lista_itens || []).forEach(item => {
+    if (item && typeof item === 'object' && item.cod) {
+      saldoMap[item.cod + '|' + (item.loc || '')] = item.saldo_sap ?? null;
+      if (saldoMap[item.cod] === undefined) saldoMap[item.cod] = item.saldo_sap ?? null;
+    }
+  });
+  const temSaldoSAP = (sess.lista_itens || []).some(i => i && typeof i === 'object' && i.saldo_sap !== null && i.saldo_sap !== undefined);
   const total = sess.total_rodadas;
   const divs = Object.values(map).filter(it => {
     const qtds = Object.values(it.rodadas);
-    return qtds.length === total && !qtds.every(q => q === qtds[0]);
+    const divR = qtds.length > 1 && !qtds.every(q => q === qtds[0]);
+    const saldo = saldoMap[it.codigo_sap + '|' + it.localizacao] ?? saldoMap[it.codigo_sap] ?? null;
+    const divS = saldo !== null && qtds.some(q => q !== saldo);
+    return divR || divS;
   });
-  const headers = ['Código SAP', 'Descrição', 'Unidade', 'Localização', ...Array.from({ length: total }, (_, i) => `Qtd Rodada ${i + 1}`)];
-  const rows = divs.map(it => [it.codigo_sap, it.descricao, it.unidade, it.localizacao, ...Array.from({ length: total }, (_, i) => it.rodadas[i + 1] ?? '')]);
+  const rodadaCols = Array.from({ length: total }, (_, i) => `Qtd Rodada ${i + 1}`);
+  const headers = ['Código SAP', 'Descrição', 'Unidade', 'Localização', ...(temSaldoSAP ? ['Saldo SAP'] : []), ...rodadaCols];
+  const rows = divs.map(it => {
+    const saldo = saldoMap[it.codigo_sap + '|' + it.localizacao] ?? saldoMap[it.codigo_sap] ?? '';
+    const rodadas = Array.from({ length: total }, (_, i) => it.rodadas[i + 1] ?? '');
+    return [it.codigo_sap, it.descricao, it.unidade, it.localizacao, ...(temSaldoSAP ? [saldo] : []), ...rodadas];
+  });
   const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
@@ -4689,6 +4747,12 @@ function permAplicarUI() {
   if (!currentUser) return;
   const isCoordenador = currentUser.perfil === 'coordenador' || currentUser.perfil === 'supervisor';
   const isAlmoxarife = currentUser.perfil === 'almoxarife';
+
+  // Botão voltar para home — só aparece para almoxarife que entrou via etiquetas
+  const btnVoltar = document.getElementById('btn-voltar-home-sup');
+  if (btnVoltar) btnVoltar.style.display = isAlmoxarife ? '' : 'none';
+  const btnDash = document.getElementById('btn-dashboard-sup');
+  if (btnDash) btnDash.style.display = isAlmoxarife ? 'none' : '';
 
   // Reexibe todas as abas antes de aplicar regras
   document.querySelectorAll('.tab').forEach(t => t.style.display = '');
